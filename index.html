@@ -1229,6 +1229,7 @@
           <option value="white">White political map</option>
           <option value="geographic">North Azimuthal Geographic</option>
           <option value="satellite">Satellite imagery</option>
+          <option value="terrain">Terrain map</option>
         </select>
       </div>
       <div style="margin-top:8px;">
@@ -1684,6 +1685,7 @@
             <option value="white">White political</option>
             <option value="geographic">North Azimuthal Geographic</option>
             <option value="satellite">Satellite</option>
+            <option value="terrain">Terrain map</option>
           </select>
         </div>
         <div class="premium-control">
@@ -1998,6 +2000,11 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
     satelliteTexture: null,
     satelliteTextureReady: false,
     satelliteTextureLoading: false,
+    satelliteTextureHQ: false,
+    topoTexture: null,
+    topoTextureReady: false,
+    topoTextureLoading: false,
+    topoTextureHQ: false,
     imageryTiles: new Map(),
     satelliteTileMode: false,
     windEnabled: false,
@@ -4012,7 +4019,7 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
   // outer-rim ice band — matches the reference azimuthal-equidistant look.
   function antarcticaFillColor() {
     const mode = state.terrainMode;
-    if (mode === "satellite" || mode === "imagery") return null;
+    if (mode === "satellite" || mode === "imagery" || mode === "terrain") return null;
     if (mode === "geographic") return "rgba(232,238,244,0.86)";
     if (mode === "topoStyle" || mode === "topographic") return "rgba(232,240,246,0.88)";
     if (mode === "heat") return "rgba(195,218,238,0.86)";
@@ -4035,42 +4042,26 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
   // skip them in fill-modes; the synthetic antarcticaCoastLat() ring already
   // renders Antarctica properly without that seam problem.
   function isAntarcticPolyline(seg) {
-    if (!seg || seg.length < 8) return false;
+    // Skip any segment whose majority of points lie below -58° lat.
+    // This catches: the circumpolar coast, the Antarctic Peninsula, ice shelves,
+    // and any other filled coast polygons that would overdraw the Antarctica fill.
+    // Falklands (-52°), South Georgia (-54°), Bouvet (-54°) are safely above -58°.
+    if (!seg || seg.length < 4) return false;
     let southCount = 0;
-    let lonMin = Infinity, lonMax = -Infinity;
     for (const p of seg) {
-      if (p[1] < -55) southCount++;
-      if (p[0] < lonMin) lonMin = p[0];
-      if (p[0] > lonMax) lonMax = p[0];
+      if (p[1] < -58) southCount++;
     }
-    // Mostly-southern AND wraps a wide longitude range = Antarctic mainland.
-    return southCount > seg.length * 0.7 && (lonMax - lonMin) > 120;
+    return southCount > seg.length * 0.6;
   }
 
   // Sub-Antarctic island groups not present in VECTOR_MAP_DATA.
   // Simple closed polygons: [ [lon, lat], ... ] (same order as vector data).
   const SUBANTARCTIC_ISLANDS = [
-    // V75: Antarctic Peninsula — narrow finger of land extending NORTH from
-    // mainland Antarctica toward South America (Cape Horn). The smooth coast
-    // function can't show its sharp shape — drawn as a distinct polygon here.
-    // Geography: tip ~-63.4°S, base ~-75°S. Lons: east side ~-57°W, west ~-73°W.
-    { name: "AntarcticPeninsula", pts: [
-      [-57.0, -63.4],   // Trinity Peninsula tip
-      [-56.5, -64.2], [-56.8, -65.5], [-58.0, -66.8], [-59.4, -68.2],
-      [-60.6, -69.6], [-61.8, -70.9], [-62.9, -72.2], [-63.9, -73.4],
-      [-64.7, -74.4], [-65.6, -75.0],  // east-side base on Ronne Ice Shelf
-      [-68.2, -75.1], [-70.5, -74.6],  // south base sweep
-      [-72.4, -73.7], [-73.0, -72.4], [-73.0, -71.0], [-72.0, -69.5],
-      [-70.4, -68.0], [-68.7, -66.6], [-66.8, -65.4], [-64.5, -64.4],
-      [-61.5, -63.7], [-58.5, -63.4]   // back near tip
-    ] },
     // South Shetland Islands chain (just north of Peninsula tip)
     { name: "KingGeorge", pts: [[-58.15,-61.92],[-57.40,-61.88],[-57.28,-62.25],[-58.05,-62.45],[-58.60,-62.22]] },
     { name: "Livingston",  pts: [[-61.05,-62.62],[-59.72,-62.48],[-59.45,-62.75],[-60.12,-63.08],[-61.15,-62.98]] },
     { name: "ElephantI",   pts: [[-55.55,-60.95],[-54.85,-60.95],[-54.65,-61.20],[-55.30,-61.32],[-55.75,-61.17]] },
     { name: "Deception",   pts: [[-60.65,-62.92],[-60.35,-62.80],[-60.20,-63.02],[-60.50,-63.12]] },
-    // Alexander Island (just west of peninsula)
-    { name: "AlexanderI",  pts: [[-72.5,-69.0],[-69.8,-69.4],[-68.5,-71.0],[-69.5,-72.5],[-72.0,-72.6],[-73.7,-71.4]] },
     // James Ross Island (east of peninsula tip, in Weddell Sea)
     { name: "JamesRoss",   pts: [[-58.0,-63.85],[-57.4,-63.85],[-57.3,-64.5],[-57.9,-64.6],[-58.2,-64.2]] },
     // South Georgia Island
@@ -4118,7 +4109,7 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
   }
 
   function drawAntarcticaLive() {
-    if (state.terrainMode === "imagery" || state.terrainMode === "satellite") return;
+    if (state.terrainMode === "imagery" || state.terrainMode === "satellite" || state.terrainMode === "terrain") return;
     const fill = antarcticaFillColor();
     if (!fill) return;
     ctx.save();
@@ -4214,6 +4205,49 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
     fast.src = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=-180,-90,180,90&bboxSR=4326&imageSR=4326&size=4096,2048&format=jpg&f=image";
   }
 
+  // Terrain map base texture (ESRI World Physical Map).
+  // Two-tier: a 1024×512 thumbnail is fetched silently at page startup so
+  // the terrain mode feels instant.  A 4096×2048 upgrade loads in background.
+  // silent=true suppresses toasts (used for the startup preload).
+  function loadTopoTexture(silent) {
+    if (state.topoTextureReady || state.topoTextureLoading) return;
+    state.topoTextureLoading = true;
+    if (!silent) toast("Loading terrain map…");
+
+    const BASE = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer/export?bbox=-180,-90,180,90&bboxSR=4326&imageSR=4326&format=jpg&f=image";
+
+    // Tier 1 — tiny thumbnail (fast, ~80 KB, ready in <1 s on most connections)
+    const thumb = new Image();
+    thumb.crossOrigin = "anonymous";
+    thumb.onload = () => {
+      if (!state.topoTextureReady) {
+        state.topoTexture = thumb;
+        state.topoTextureReady = true;
+        state.topoTextureLoading = false;
+        state.vectorMapCacheDirty = true;
+        if (state.terrainMode === "terrain") { draw(); }
+        if (!silent) toast("Terrain map ready — upgrading quality…");
+      }
+      // Tier 2 — full-quality (4K, ~400 KB)
+      const hq = new Image();
+      hq.crossOrigin = "anonymous";
+      hq.onload = () => {
+        state.topoTexture = hq;
+        state.topoTextureHQ = true;
+        state.vectorMapCacheDirty = true;
+        if (state.terrainMode === "terrain") { draw(); }
+        if (!silent) toast("Terrain map high-res ready");
+      };
+      hq.onerror = () => {};
+      hq.src = BASE + "&size=4096,2048&imageSR=4326";
+    };
+    thumb.onerror = () => {
+      state.topoTextureLoading = false;
+      if (!silent) toast("Terrain map load failed – check connection");
+    };
+    thumb.src = BASE + "&size=1024,512&imageSR=4326";
+  }
+
   // High-detail satellite tile loader for Google-Earth-like zoom (deep zoom).
   // Fetches region-specific high-resolution Esri tiles on demand and caches them.
   function loadSatelliteDetailTile(latMin, latMax, lonMin, lonMax) {
@@ -4238,10 +4272,15 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
   // Tile renderer: maps equirectangular satellite image onto the azimuthal projection.
   // Step adapts to texture resolution so the high-res 8K texture isn't wasted.
   function drawSatelliteToContext(cctx) {
-    if (!state.satelliteTextureReady || !state.satelliteTexture) return false;
-    const img = state.satelliteTexture;
+    const isTerrain = state.terrainMode === "terrain";
+    if (isTerrain) {
+      if (!state.topoTextureReady || !state.topoTexture) return false;
+    } else {
+      if (!state.satelliteTextureReady || !state.satelliteTexture) return false;
+    }
+    const img = isTerrain ? state.topoTexture : state.satelliteTexture;
     // Finer step for HQ texture (sharper detail), coarser for low-res (performance).
-    const step = state.satelliteTextureHQ ? 0.85 : 1.5;
+    const step = (isTerrain ? state.topoTextureHQ : state.satelliteTextureHQ) ? 0.85 : 1.5;
     cctx.save();
     cctx.imageSmoothingEnabled = true;
     if ("imageSmoothingQuality" in cctx) cctx.imageSmoothingQuality = "high";
@@ -4310,6 +4349,14 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
   const _SAT_XYZ_MAX = 600;
 
   function _satTileURL(z, x, y) {
+    if (state.terrainMode === "terrain") {
+      // ESRI World Physical Map — natural terrain colours, blue ocean, Arctic white.
+      // Max native zoom = 8; beyond that the base texture handles it.
+      const clampedZ = Math.min(z, 8);
+      const scale = Math.pow(2, z - clampedZ);
+      const cx = Math.floor(x / scale), cy = Math.floor(y / scale);
+      return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer/tile/${clampedZ}/${cy}/${cx}`;
+    }
     return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
   }
 
@@ -4354,7 +4401,8 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
   // Load an XYZ tile; LRU-cached up to _SAT_XYZ_MAX entries.
   // Returns cache entry immediately; entry.state → 'ready' when loaded.
   function _loadSatTile(z, x, y) {
-    const key = `${z}/${x}/${y}`;
+    // Prefix key with mode so satellite and terrain tiles never collide in cache.
+    const key = `${state.terrainMode}/${z}/${x}/${y}`;
     if (window._satXYZCache.has(key)) {
       const v = window._satXYZCache.get(key);
       window._satXYZCache.delete(key);
@@ -4379,45 +4427,74 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
     return entry;
   }
 
-  // Warp one 256×256 tile onto drawCtx using 8×8 sub-quads.
-  // Each sub-quad is clipped to its exact projected polygon shape so adjacent
-  // quads never overlap — this is the fix for the palm-jumeirah stitching artefact.
+  // ── Affine-triangle texture mapper ───────────────────────────────────────
+  // Maps one triangle of the source image to screen using an exact affine
+  // transform derived from the three vertex correspondences.  This eliminates
+  // all stitching seams — the previous bounding-box stretch had a different
+  // scale for every quad, so neighbouring quads never lined up perfectly.
+  //
+  // The affine transform T maps image pixel (sx,sy) → screen pixel (dx,dy):
+  //   dx = a·sx + c·sy + e       (canvas transform convention)
+  //   dy = b·sx + d·sy + f
+  // Solved by Cramer's rule from the 3 vertex pairs.
+  function _drawTexTri(drawCtx, img,
+      sx0,sy0, sx1,sy1, sx2,sy2,   // source image pixel coords
+      dx0,dy0, dx1,dy1, dx2,dy2) { // dest screen coords
+    if (!isFinite(dx0+dy0+dx1+dy1+dx2+dy2)) return;
+    const det = sx0*(sy1-sy2) + sx1*(sy2-sy0) + sx2*(sy0-sy1);
+    if (Math.abs(det) < 0.01) return;
+    const a = (dx0*(sy1-sy2) + dx1*(sy2-sy0) + dx2*(sy0-sy1)) / det;
+    const b = (dy0*(sy1-sy2) + dy1*(sy2-sy0) + dy2*(sy0-sy1)) / det;
+    const c = (sx0*(dx1-dx2) + sx1*(dx2-dx0) + sx2*(dx0-dx1)) / det;
+    const d = (sx0*(dy1-dy2) + sx1*(dy2-dy0) + sx2*(dy0-dy1)) / det;
+    const e = (sx0*(sy1*dx2-sy2*dx1) + sx1*(sy2*dx0-sy0*dx2) + sx2*(sy0*dx1-sy1*dx0)) / det;
+    const f = (sx0*(sy1*dy2-sy2*dy1) + sx1*(sy2*dy0-sy0*dy2) + sx2*(sy0*dy1-sy1*dy0)) / det;
+    try {
+      drawCtx.save();
+      drawCtx.beginPath();
+      drawCtx.moveTo(dx0, dy0);
+      drawCtx.lineTo(dx1, dy1);
+      drawCtx.lineTo(dx2, dy2);
+      drawCtx.closePath();
+      drawCtx.clip();
+      drawCtx.transform(a, b, c, d, e, f);
+      drawCtx.drawImage(img, 0, 0);
+      drawCtx.restore();
+    } catch(_) {}
+  }
+
+  // Warp one 256×256 tile onto drawCtx.
+  // Each 8×8 sub-quad is split into 2 affine-mapped triangles so the mapping
+  // is mathematically exact at every vertex — zero stitching seams.
   function _drawSatTileWarped(drawCtx, tileImg, tileX, tileY, z) {
     const SUB = 8;
     const srcStep = 256 / SUB;
     const cvW = canvas.clientWidth, cvH = canvas.clientHeight;
     for (let j = 0; j < SUB; j++) {
       for (let i = 0; i < SUB; i++) {
-        const srcX = i * srcStep, srcY = j * srcStep;
-        const ftl = _tileFToLatLon(tileX + i / SUB,         tileY + j / SUB,         z);
-        const ftr = _tileFToLatLon(tileX + (i + 1) / SUB,   tileY + j / SUB,         z);
-        const fbr = _tileFToLatLon(tileX + (i + 1) / SUB,   tileY + (j + 1) / SUB,   z);
-        const fbl = _tileFToLatLon(tileX + i / SUB,         tileY + (j + 1) / SUB,   z);
-        const pts = [ftl, ftr, fbr, fbl].map(ll =>
-          imageToScreen(latLonToImagePoint(ll.lat, ll.lon))
-        );
-        const xs = pts.map(p => p.x);
-        const ys = pts.map(p => p.y);
-        const minX = Math.min(...xs), maxX = Math.max(...xs);
-        const minY = Math.min(...ys), maxY = Math.max(...ys);
-        const dw = maxX - minX, dh = maxY - minY;
-        if (dw < 0.5 || dh < 0.5) continue;
+        // Source pixel corners inside the 256×256 tile
+        const s0x = i*srcStep,     s0y = j*srcStep;
+        const s1x = (i+1)*srcStep, s1y = j*srcStep;
+        const s2x = (i+1)*srcStep, s2y = (j+1)*srcStep;
+        const s3x = i*srcStep,     s3y = (j+1)*srcStep;
+        // Corresponding screen positions via AE projection
+        const _p = ll => imageToScreen(latLonToImagePoint(ll.lat, ll.lon));
+        const d0 = _p(_tileFToLatLon(tileX+i/SUB,     tileY+j/SUB,     z));
+        const d1 = _p(_tileFToLatLon(tileX+(i+1)/SUB, tileY+j/SUB,     z));
+        const d2 = _p(_tileFToLatLon(tileX+(i+1)/SUB, tileY+(j+1)/SUB, z));
+        const d3 = _p(_tileFToLatLon(tileX+i/SUB,     tileY+(j+1)/SUB, z));
+        // Coarse off-screen cull
+        const minX = Math.min(d0.x,d1.x,d2.x,d3.x), maxX = Math.max(d0.x,d1.x,d2.x,d3.x);
+        const minY = Math.min(d0.y,d1.y,d2.y,d3.y), maxY = Math.max(d0.y,d1.y,d2.y,d3.y);
         if (maxX < 0 || minX > cvW || maxY < 0 || minY > cvH) continue;
-        try {
-          drawCtx.save();
-          // Clip to the exact projected quadrilateral — prevents any overlap
-          // between adjacent sub-quads regardless of how the projection distorts them.
-          drawCtx.beginPath();
-          drawCtx.moveTo(pts[0].x, pts[0].y);
-          drawCtx.lineTo(pts[1].x, pts[1].y);
-          drawCtx.lineTo(pts[2].x, pts[2].y);
-          drawCtx.lineTo(pts[3].x, pts[3].y);
-          drawCtx.closePath();
-          drawCtx.clip();
-          drawCtx.drawImage(tileImg, srcX, srcY, srcStep, srcStep,
-                            minX, minY, dw, dh);
-          drawCtx.restore();
-        } catch (e) { /* tainted / zero-size */ }
+        if (maxX-minX < 0.4 && maxY-minY < 0.4) continue;
+        // Two affine-mapped triangles per quad
+        _drawTexTri(drawCtx, tileImg,
+          s0x,s0y, s1x,s1y, s2x,s2y,
+          d0.x,d0.y, d1.x,d1.y, d2.x,d2.y);  // TL–TR–BR
+        _drawTexTri(drawCtx, tileImg,
+          s0x,s0y, s2x,s2y, s3x,s3y,
+          d0.x,d0.y, d2.x,d2.y, d3.x,d3.y);  // TL–BR–BL
       }
     }
   }
@@ -4480,8 +4557,13 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
   // Render satellite imagery directly to screen at native zoom — used for
   // sharp Google-Earth-like rendering at high zoom levels (no cache stretching).
   function drawSatelliteDirect() {
-    if (!state.satelliteTextureReady || !state.satelliteTexture) return;
-    const img = state.satelliteTexture;
+    const isTerrain = state.terrainMode === "terrain";
+    if (isTerrain) {
+      if (!state.topoTextureReady || !state.topoTexture) return;
+    } else {
+      if (!state.satelliteTextureReady || !state.satelliteTexture) return;
+    }
+    const img = isTerrain ? state.topoTexture : state.satelliteTexture;
     const centerScreen = imageToScreen({ x: state.geometry.centerX, y: state.geometry.centerY });
     const outerRadius = state.geometry.radiusSouth * state.scale;
     const cw = canvas.clientWidth, ch = canvas.clientHeight;
@@ -4596,7 +4678,7 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
 
   // Trigger high-res tile fetch for the visible region when zoomed in.
   function maybeRequestSatelliteDetail() {
-    if (state.terrainMode !== "satellite") return;
+    if (state.terrainMode !== "satellite" && state.terrainMode !== "terrain") return;
     if (state.scale < 2.5) return; // only at meaningful zoom
     if (!state.image) return;
     // Determine visible region's center lat/lon
@@ -4639,6 +4721,7 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
     // Mode-aware ocean color (geographic uses a brighter Natural-Earth blue)
     const _oceanBase = (state.terrainMode === "geographic") ? "#3a86b8"
                      : (state.terrainMode === "topoStyle" || state.terrainMode === "topographic") ? "#1a6e9c"
+                     : (state.terrainMode === "terrain") ? "#2e7eb4"
                      : "#0b5f91";
     cctx.fillStyle = _oceanBase;
     cctx.fill();
@@ -4659,8 +4742,10 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
       return latLonToImagePoint(lat, lon);
     }
 
-    // Draw satellite texture into cache when in satellite mode
+    // Draw satellite/terrain texture into cache when in tile-based modes
     if (state.terrainMode === "satellite" && state.satelliteTextureReady) {
+      drawSatelliteToContext(cctx);
+    } else if (state.terrainMode === "terrain" && state.topoTextureReady) {
       drawSatelliteToContext(cctx);
     }
 
@@ -4730,7 +4815,7 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
     }
 
     function drawAntarcticaToCache() {
-      if (state.terrainMode === "satellite" || state.terrainMode === "imagery") return;
+      if (state.terrainMode === "satellite" || state.terrainMode === "imagery" || state.terrainMode === "terrain") return;
       const fill = antarcticaFillColor();
       if (!fill) return;
       cctx.save();
@@ -4779,6 +4864,10 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
       for (const seg of segments) {
         if (!seg || seg.length < 2) continue;
         if (style.skipAntarctic && isAntarcticPolyline(seg)) continue;
+        // If skipAntarctic and ANY point is south of -58°, stroke only — no fill.
+        // Antarctica fill is drawn after coasts and covers this region properly.
+        const hasSouthPt = style.skipAntarctic && seg.some(p => p[1] < -58);
+        const activeFill = hasSouthPt ? null : style.fill;
         cctx.beginPath();
         let started = false;
         let lastLon = null;
@@ -4787,9 +4876,9 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
           const lat = pair[1];
           if (lastLon !== null && Math.abs(normalizeLongitude(lon - lastLon)) > 120) {
             if (started) {
-              if (style.fill) {
+              if (activeFill) {
                 cctx.closePath();
-                cctx.fillStyle = typeof style.fill === "function" ? style.fill(seg) : style.fill;
+                cctx.fillStyle = typeof activeFill === "function" ? activeFill(seg) : activeFill;
                 cctx.fill();
               }
               cctx.stroke();
@@ -4807,9 +4896,9 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
           lastLon = lon;
         }
         if (started) {
-          if (style.fill) {
+          if (activeFill) {
             cctx.closePath();
-            cctx.fillStyle = typeof style.fill === "function" ? style.fill(seg) : style.fill;
+            cctx.fillStyle = typeof activeFill === "function" ? activeFill(seg) : activeFill;
             cctx.fill();
           }
           cctx.stroke();
@@ -4820,14 +4909,12 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
 
     // fake Antarctica cache ring removed
 
-    drawAntarcticaToCache();
-
     if (state.showVectorCoasts) {
       // Satellite/imagery: NO fill — let the texture show through. Subtle stroke only.
       // White: light blue-gray stroke so coastline detail (islands, peninsulas) is visible.
       // Dark: muted dark fill.
       // Geographic/topographic/heat: terrain colors.
-      const isSat = state.terrainMode === "satellite" || state.terrainMode === "imagery";
+      const isSat = state.terrainMode === "satellite" || state.terrainMode === "imagery" || state.terrainMode === "terrain";
       const fill = isSat ? null
                  : state.terrainMode === "white" ? "rgba(245,248,252,0.94)"
                  : state.terrainMode === "dark" ? "rgba(45,55,68,0.92)"
@@ -4835,6 +4922,7 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
       const stroke = isSat ? "rgba(255,240,200,0.75)"
                   : state.terrainMode === "white" ? "rgba(80,110,140,0.80)"
                   : state.terrainMode === "dark" ? "rgba(140,170,200,0.70)"
+                  : state.terrainMode === "terrain" ? "rgba(55,50,38,0.65)"
                   : state.showVectorTerrain ? "rgba(70,65,45,0.80)"
                   : "rgba(20,30,45,0.70)";
       drawSegmentsToCache(VECTOR_MAP_DATA.coasts, {
@@ -4846,7 +4934,7 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
     }
 
     if (state.showBorders !== false && state.showVectorCountries) {
-      const isSat = state.terrainMode === "satellite" || state.terrainMode === "imagery";
+      const isSat = state.terrainMode === "satellite" || state.terrainMode === "imagery" || state.terrainMode === "terrain";
       drawSegmentsToCache(VECTOR_MAP_DATA.countries, {
         stroke: isSat ? "rgba(255,255,255,0.32)"
               : state.showVectorTerrain ? "rgba(35,45,30,0.58)"
@@ -4856,6 +4944,9 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
         skipAntarctic: !isSat   // avoid broken-arc strokes overlapping the synthetic Antarctica
       });
     }
+
+    // Antarctica fill drawn AFTER coasts so it covers any stray southern coast fragments
+    drawAntarcticaToCache();
 
     if (state.showVectorGraticule) drawGridToCache();
 
@@ -4875,13 +4966,17 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
   function drawVectorMapCache() {
     if (!state.image) return;
     const moving = state.isInteracting || state.dragging || (typeof touchMode !== "undefined" && (touchMode === "pan" || touchMode === "pinch"));
-    // Satellite mode: always draw directly (bypasses cache at all zoom levels).
+    // Satellite/terrain mode: always draw directly (bypasses cache at all zoom levels).
     // XYZ tiles are overlaid on top inside drawSatelliteDirect at scale ≥ 2.0.
     if (!moving && state.terrainMode === "satellite" && state.satelliteTextureReady) {
       drawSatelliteDirect();
       return;
     }
-    if (!moving && state.scale >= 2.2 && state.terrainMode !== "imagery" && state.terrainMode !== "satellite") {
+    if (!moving && state.terrainMode === "terrain" && state.topoTextureReady) {
+      drawSatelliteDirect();
+      return;
+    }
+    if (!moving && state.scale >= 2.2 && state.terrainMode !== "imagery" && state.terrainMode !== "satellite" && state.terrainMode !== "terrain") {
       drawVectorGeneratedMap();
       return;
     }
@@ -4916,6 +5011,7 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
     ctx.arc(centerScreen.x, centerScreen.y, outerRadius, 0, Math.PI * 2);
     const _oceanBase = (state.terrainMode === "geographic") ? "#3a86b8"
                      : (state.terrainMode === "topoStyle" || state.terrainMode === "topographic") ? "#1a6e9c"
+                     : (state.terrainMode === "terrain") ? "#2e7eb4"
                      : "#0b5f91";
     ctx.fillStyle = _oceanBase;
     ctx.fill();
@@ -4933,12 +5029,9 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
 
-    // Antarctica rim is drawn explicitly so it does not disappear on zoom.
-    drawVectorAntarcticaRing();
-
     // Continents / coastlines.
     if (state.showVectorCoasts) {
-      const isSat = state.terrainMode === "satellite" || state.terrainMode === "imagery";
+      const isSat = state.terrainMode === "satellite" || state.terrainMode === "imagery" || state.terrainMode === "terrain";
       const fill = isSat ? null
                  : state.terrainMode === "white" ? "rgba(245,248,252,0.94)"
                  : state.terrainMode === "dark" ? "rgba(45,55,68,0.92)"
@@ -4946,6 +5039,7 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
       const stroke = isSat ? "rgba(255,240,200,0.75)"
                   : state.terrainMode === "white" ? "rgba(80,110,140,0.85)"
                   : state.terrainMode === "dark" ? "rgba(140,170,200,0.75)"
+                  : state.terrainMode === "terrain" ? "rgba(55,50,38,0.65)"
                   : state.showVectorTerrain ? "rgba(80,70,45,0.85)"
                   : "rgba(20,30,45,0.78)";
       drawVectorSegments(VECTOR_MAP_DATA.coasts, {
@@ -4958,7 +5052,7 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
 
     // Modern borders.
     if (state.showBorders !== false && state.showVectorCountries) {
-      const isSat = state.terrainMode === "satellite" || state.terrainMode === "imagery";
+      const isSat = state.terrainMode === "satellite" || state.terrainMode === "imagery" || state.terrainMode === "terrain";
       drawVectorSegments(VECTOR_MAP_DATA.countries, {
         stroke: isSat ? "rgba(255,255,255,0.32)"
               : state.showVectorTerrain ? "rgba(35,45,30,0.58)"
@@ -4968,6 +5062,9 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
         skipAntarctic: !isSat
       });
     }
+
+    // Antarctica fill drawn AFTER coasts so it covers any stray southern coast fragments
+    drawVectorAntarcticaRing();
 
     // Optional graticule is drawn above land so it remains visible when toggled on.
     if (state.showVectorGraticule) drawVectorGraticule();
@@ -5053,6 +5150,30 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
       if (absLat < 50) return "rgba(255,218,98,0.96)";
       if (absLat < 66) return "rgba(116,202,180,0.96)";
       return "rgba(108,178,240,0.96)";
+    }
+
+    // ── Terrain (vector, no tiles) ─────────────────────────────────────────
+    // Natural-Earth-inspired palette: vivid biome separation, atlas quality.
+    // Same region detection booleans as geographic/topographic above.
+    if (state.terrainMode === "terrain") {
+      // Polar tundra / ice sheet
+      if (absLat > 65) return "rgba(228,238,246,0.97)";
+      // Boreal / sub-polar
+      if (absLat > 55) return "rgba(154,186,138,0.97)";
+      // Highlands & mountain ranges (strong brownish rock)
+      if (highlands) return "rgba(148,120,82,0.97)";
+      // Hot deserts (Sahara, Arabian, Outback, SW US, Atacama)
+      if (desert) return "rgba(220,196,128,0.97)";
+      // Equatorial rainforest
+      if (lush) return "rgba(62,132,66,0.97)";
+      // Tropical savanna / grassland
+      if (absLat < 18) return "rgba(136,178,72,0.97)";
+      // Mediterranean / prairie mid-lat
+      if (absLat < 35) return "rgba(172,194,98,0.97)";
+      // Temperate broadleaf & mixed
+      if (absLat < 52) return "rgba(124,168,88,0.97)";
+      // Taiga / boreal transition
+      return "rgba(140,172,120,0.97)";
     }
 
     return "rgba(245,248,252,0.94)";
@@ -5141,6 +5262,10 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
     for (const seg of segments) {
       if (!seg || seg.length < 2) continue;
       if (style.skipAntarctic && isAntarcticPolyline(seg)) continue;
+      // If skipAntarctic and ANY point is south of -58°, stroke only — no fill.
+      // Antarctica fill is drawn after coasts and covers this region properly.
+      const hasSouthPt = style.skipAntarctic && seg.some(p => p[1] < -58);
+      const activeFill = hasSouthPt ? null : style.fill;
       ctx.beginPath();
       let started = false;
       let lastLon = null;
@@ -5151,9 +5276,9 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
 
         if (lastLon !== null && Math.abs(normalizeLongitude(lon - lastLon)) > 120) {
           if (started) {
-            if (style.fill) {
+            if (activeFill) {
               ctx.closePath();
-              ctx.fillStyle = typeof style.fill === "function" ? style.fill(seg) : style.fill;
+              ctx.fillStyle = typeof activeFill === "function" ? activeFill(seg) : activeFill;
               ctx.fill();
             }
             ctx.stroke();
@@ -5173,9 +5298,9 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
       }
 
       if (started) {
-        if (style.fill) {
+        if (activeFill) {
           ctx.closePath();
-          ctx.fillStyle = typeof style.fill === "function" ? style.fill(seg) : style.fill;
+          ctx.fillStyle = typeof activeFill === "function" ? activeFill(seg) : activeFill;
           ctx.fill();
         }
         ctx.stroke();
@@ -7051,14 +7176,16 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
     ui.showVectorTerrain.addEventListener("change", () => {
       const prev = state.terrainMode;
       state.terrainMode = ui.showVectorTerrain.value || "white";
-      state.showVectorTerrain = state.terrainMode === "satellite";
-      // Clear satellite detail tiles when leaving satellite mode (free memory).
-      if (prev === "satellite" && state.terrainMode !== "satellite") {
+      state.showVectorTerrain = state.terrainMode === "satellite" || state.terrainMode === "terrain";
+      if ((prev === "satellite" || prev === "terrain") && state.terrainMode !== prev) {
         if (state.satelliteDetailTiles) state.satelliteDetailTiles.clear();
       }
       if (state.terrainMode === "satellite") {
         loadSatelliteTexture();
         try { maybeRequestSatelliteDetail(); } catch (e) {}
+      }
+      if (state.terrainMode === "terrain") {
+        loadTopoTexture();
       }
       markVectorMapDirty();
       draw();
@@ -14827,6 +14954,9 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
   setMode("pan");
   loadImage(state.imageUrl);
   updateWeatherBadge();
+  // Silently preload terrain texture in the background so switching to
+  // "Terrain map" mode feels instant — thumbnail arrives in <1 s, HQ follows.
+  setTimeout(() => { try { loadTopoTexture(true); } catch(e){} }, 3000);
 })();
   // v70 About popup
   const aboutBtnV70 = document.getElementById("aboutBtn");
