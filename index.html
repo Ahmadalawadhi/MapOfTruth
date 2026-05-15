@@ -10,6 +10,46 @@
 <meta name="format-detection" content="telephone=no, email=no, address=no" />
 <meta name="theme-color" content="#cddeea" />
 <title>Map of Truth V1.3</title>
+<!-- (v1.3 final) Earliest-possible global error handler.  Captures any
+     parse error or uncaught exception that happens before the main script
+     finishes wiring up the UI — without this, a single throw on an older
+     Samsung WebView would leave the screen completely blank with no clue
+     for the user.  We surface a small message + the error text so triage
+     is possible from a real device. -->
+<script>
+(function bootGuard(){
+  function show(msg){
+    try{
+      var el = document.getElementById("__motErrorBanner");
+      if(!el){
+        el = document.createElement("div");
+        el.id = "__motErrorBanner";
+        el.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:2147483647;"+
+          "background:#0b0f16;color:#ffd1d1;font:13px/1.4 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;"+
+          "padding:10px 14px;border-top:1px solid #5a1f1f;max-height:45vh;overflow:auto;white-space:pre-wrap;";
+        (document.body || document.documentElement).appendChild(el);
+      }
+      el.textContent = "Map of Truth: a non-fatal error was caught — the app should still work. Details: " + msg;
+    }catch(_){}
+  }
+  window.addEventListener("error", function(ev){
+    try{
+      var msg = ev && ev.message ? ev.message : "unknown error";
+      if (ev && ev.filename) msg += " @" + ev.filename + ":" + ev.lineno;
+      console.error("[MapOfTruth uncaught]", msg, ev && ev.error);
+      show(msg);
+    }catch(_){}
+  });
+  window.addEventListener("unhandledrejection", function(ev){
+    try{
+      var r = ev && ev.reason;
+      var msg = (r && (r.message || r.toString())) || "unhandled promise rejection";
+      console.error("[MapOfTruth unhandledrejection]", msg, r);
+      show(msg);
+    }catch(_){}
+  });
+})();
+</script>
 <style>
   :root {
     --bg: #000000; /* default: black — user-selectable in Layers */
@@ -988,6 +1028,15 @@
     font-size:11px; line-height:1; cursor:pointer; user-select:none;
   }
   .celestial-filter input { width:12px; height:12px; margin:0; accent-color:#7cdda0; }
+  /* (v1.3 final) Universal :checked feedback.  Split into two separate
+     rules so a Samsung WebView that does not recognise `:has()` only drops
+     the second rule — the JS-driven `.is-checked` class keeps everything
+     working everywhere. */
+  .celestial-filter.is-checked {
+    color:rgba(255,255,255,0.96);
+    background:rgba(124,221,160,0.13);
+    border-color:rgba(124,221,160,0.34);
+  }
   .celestial-filter:has(input:checked) {
     color:rgba(255,255,255,0.96);
     background:rgba(124,221,160,0.13);
@@ -1166,33 +1215,12 @@
     }
   }
 
-  /* (v1.3) Performance Mode + WebView compatibility fallbacks.
-     - `body.perf-mode`: applied ONLY when the user toggles Performance Mode
-       in Layers.  Drops expensive GPU effects so menus stay responsive on
-       devices where the WebView GPU path is slow.  Never set automatically
-       based on phone age.
-     - `html.no-backdrop-filter`: set by JS feature-detection when neither
-       `backdrop-filter` nor `-webkit-backdrop-filter` is supported (some
-       Samsung WebViews, older Chromium forks).  Falls back to solid
-       translucent backgrounds so the panels remain legible.
-     - `html.no-transform3d` / `html.no-has` / `html.no-env`: defensive
-       hooks reserved for narrow future fallbacks. */
-  body.perf-mode,
-  body.perf-mode * {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-  body.perf-mode * {
-    transition-duration: 0s !important;
-    animation-duration: 0s !important;
-  }
-  body.perf-mode #premiumPanel,
-  body.perf-mode #premiumMobileSheet,
-  body.perf-mode .premium-panel,
-  body.perf-mode .pill,
-  body.perf-mode .toast {
-    background-color: rgba(11,15,22,0.94) !important;
-  }
+  /* (v1.3 final) WebView compatibility fallbacks only.
+     No performance-mode logic.  No phone-age gating.
+     `html.no-backdrop-filter` is added by JS when neither `backdrop-filter`
+     nor `-webkit-backdrop-filter` resolves through CSS.supports — common on
+     Samsung WebView builds that ship without a working blur path.  We
+     substitute solid translucent panels so the UI stays legible. */
   html.no-backdrop-filter #premiumPanel,
   html.no-backdrop-filter #premiumMobileSheet,
   html.no-backdrop-filter .premium-panel,
@@ -1205,8 +1233,6 @@
     -webkit-backdrop-filter: none !important;
     background-color: rgba(11,15,22,0.93) !important;
   }
-  /* Legacy alias — kept so any leftover `.perf-low` rule still works. */
-  body.perf-low { /* identical to perf-mode for compatibility */ }
 
 </style>
 </head>
@@ -1433,17 +1459,6 @@
           <option value="en" selected>English</option>
           <option value="ar">العربية (Arabic)</option>
         </select>
-      </div>
-      <!-- (v1.3) Performance Mode — manual switch, default OFF.  Reduces
-           particle counts and disables backdrop-filter blurs / transitions
-           on devices where the WebView GPU path is slow.  Does NOT change
-           map quality, distance math, or default scale. -->
-      <div class="row" style="margin-top:8px;">
-        <div>
-          <label for="perfModeToggle">Performance mode</label>
-          <button id="perfModeToggle" class="switch-toggle" type="button" data-on="false" aria-label="Performance mode"></button>
-        </div>
-        <div class="small" style="opacity:.8;align-self:end;padding-bottom:6px;">Off (full quality)</div>
       </div>
       <div class="small" style="margin-top:8px;">White political map is the stable, fastest mode. Satellite mode is cached for smoother use. (3D celestial view has moved to the Celestials tab.)</div>
       <div class="row" style="margin-top:8px;">
@@ -2001,8 +2016,6 @@
         <button id="pmCoords" type="button" class="premium-row toggle-row"><span>Coordinate lines</span><i class="mini-switch"></i></button>
         <button id="pmCities" type="button" class="premium-row toggle-row"><span>City labels</span><i class="mini-switch"></i></button>
         <button id="pmBorders" type="button" class="premium-row toggle-row"><span>Borders</span><i class="mini-switch"></i></button>
-        <!-- (v1.3) Manual Performance Mode toggle (mobile).  Default OFF. -->
-        <button id="pmPerfMode" type="button" class="premium-row toggle-row"><span>Performance mode</span><i class="mini-switch"></i></button>
         <button id="pmFit" type="button" class="premium-row"><span>Fit map</span><b>Reset</b></button>
         <div class="premium-control">
           <label for="pmLanguage">Language</label>
@@ -7266,27 +7279,23 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
     /\bwv\b/.test(navigator.userAgent || "") ||
     / Version\/[\d.]+ Chrome\/[\d.]+ Mobile/.test(navigator.userAgent || "")
   );
-  // (v1.3) IS_ANDROID_LOW / IS_ANDROID_VLOW removed as auto-detected flags.
-  // We keep the symbols as window-level getters that read the user-controlled
-  // PERF_MODE switch, so the existing call-sites elsewhere in the file remain
-  // valid without any auto-downgrade behaviour.
-  if (typeof window !== "undefined") {
-    if (!("PERF_MODE" in window)) {
-      try {
-        const saved = localStorage.getItem("mot_perf_mode");
-        window.PERF_MODE = saved === "1";
-      } catch (_) { window.PERF_MODE = false; }
-    }
-    Object.defineProperty(window, "IS_ANDROID_LOW",  { configurable: true, get(){ return !!window.PERF_MODE; } });
-    Object.defineProperty(window, "IS_ANDROID_VLOW", { configurable: true, get(){ return false; } });
-  }
-  // Local aliases that match the historical names but follow the new rule:
-  // they reflect PERF_MODE only, never the device profile.
-  let IS_ANDROID_LOW  = !!(typeof window !== "undefined" && window.PERF_MODE);
+  // (v1.3 final) The auto-downgrade flags IS_ANDROID_LOW / IS_ANDROID_VLOW
+  // are now FORCED OFF for every device.  Map of Truth runs at full visual
+  // quality on Samsung, OnePlus, iPhone, desktop — everywhere.  Compatibility
+  // is handled by feature detection + safe CSS fallbacks below, never by
+  // assuming a device is slow.
+  let IS_ANDROID_LOW  = false;
   let IS_ANDROID_VLOW = false;
+  try {
+    window.IS_ANDROID_LOW  = false;
+    window.IS_ANDROID_VLOW = false;
+    window.PERF_MODE       = false;
+  } catch (_) {}
 
-  // CSS feature detection — runs once.  Falls back to safe alternatives only
-  // when a feature actually is not supported, not because the OS is old.
+  // CSS feature detection — safe-by-default.  If CSS.supports is missing or
+  // throws on a feature query (some Samsung WebView builds throw on
+  // selector(...) queries), we silently assume the feature is unsupported
+  // and apply the corresponding fallback CSS class.
   const FEATURE_SUPPORT = (function(){
     const css = (typeof CSS !== "undefined" && CSS.supports) ? CSS.supports.bind(CSS) : null;
     const safe = (q) => { try { return !!(css && css(q)); } catch (_) { return false; } };
@@ -7294,11 +7303,15 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
       backdropFilter:
         safe("backdrop-filter: blur(4px)") ||
         safe("-webkit-backdrop-filter: blur(4px)"),
-      has: safe("selector(:has(*))"),
+      // (v1.3 final) :has() probed via the property-value form (not the
+      // selector() form, which some Samsung WebView builds reject).
+      // Anything that doesn't resolve cleanly is treated as unsupported.
+      has: (function(){
+        try { return !!(css && (css("selector(:has(*))") || css("(:has(*))"))); }
+        catch (_) { return false; }
+      })(),
       env: safe("padding: env(safe-area-inset-top)"),
-      transform3d: safe("transform: translateZ(0)"),
-      gap: safe("gap: 4px"),
-      colorMix: safe("color: color-mix(in srgb, red, blue)")
+      transform3d: safe("transform: translateZ(0)")
     };
   })();
   try {
@@ -7311,65 +7324,36 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
     }
   } catch (_) {}
 
-  // Performance-mode toggle.  Default OFF.  When ON, the long-standing
-  // IS_ANDROID_LOW call sites become active (fewer flecks, smaller crater
-  // set, etc.) — but DPR stays at the universal cap, never below 1.0.
-  function setPerfMode(on) {
-    on = !!on;
-    try { window.PERF_MODE = on; } catch (_) {}
-    try { localStorage.setItem("mot_perf_mode", on ? "1" : "0"); } catch (_) {}
-    IS_ANDROID_LOW = on;
+  // (v1.3 final) JS substitute for the CSS `:has(input:checked)` rule on
+  // .celestial-filter.  Some older Samsung WebView builds reject the whole
+  // rule, which removed the visual feedback when a filter was ticked.  We
+  // wire change listeners that toggle a plain class instead — universal.
+  function _syncCelestialFilterChecks() {
     try {
-      if (document.body) document.body.classList.toggle("perf-mode", on);
+      const labels = document.querySelectorAll(".celestial-filter");
+      labels.forEach((lab) => {
+        const inp = lab.querySelector("input[type=checkbox]");
+        if (!inp) return;
+        lab.classList.toggle("is-checked", !!inp.checked);
+        if (!inp.dataset.celFilterBound) {
+          inp.dataset.celFilterBound = "1";
+          inp.addEventListener("change", () => {
+            lab.classList.toggle("is-checked", !!inp.checked);
+          });
+        }
+      });
     } catch (_) {}
-    try { if (typeof resizeCanvas === "function") resizeCanvas(); } catch (_) {}
-    try { if (typeof draw === "function") draw(); } catch (_) {}
   }
-  // Sync class on boot in case PERF_MODE was restored from localStorage.
   try {
-    const apply = () => {
-      try {
-        if (document.body) document.body.classList.toggle("perf-mode", !!window.PERF_MODE);
-      } catch (_) {}
-    };
     if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", apply);
-    } else { apply(); }
+      document.addEventListener("DOMContentLoaded", _syncCelestialFilterChecks);
+    } else { _syncCelestialFilterChecks(); }
+    // Also re-sync after the language-toggle and any setup-celestial-filters
+    // call, in case those re-render the controls.
+    try { window._syncCelestialFilterChecks = _syncCelestialFilterChecks; } catch (_) {}
   } catch (_) {}
-  try { window.setPerfMode = setPerfMode; } catch (_) {}
 
-  // Wire the Performance Mode UI switches (desktop + mobile).  Safe to call
-  // even if the elements are missing in some future layout — every lookup
-  // is null-checked.
-  (function wirePerfModeUI(){
-    const init = !!window.PERF_MODE;
-    const desktop = document.getElementById("perfModeToggle");
-    const mobile  = document.getElementById("pmPerfMode");
-    function syncUI() {
-      const on = !!window.PERF_MODE;
-      if (desktop) {
-        desktop.dataset.on = on ? "true" : "false";
-        desktop.setAttribute("aria-pressed", on ? "true" : "false");
-        // Update the inline status hint next to the desktop toggle.
-        const hint = desktop.parentElement && desktop.parentElement.parentElement
-          ? desktop.parentElement.parentElement.querySelector(".small")
-          : null;
-        if (hint) hint.textContent = on ? "On (lighter effects)" : "Off (full quality)";
-      }
-      if (mobile)  mobile.classList.toggle("on", on);
-    }
-    if (desktop) {
-      desktop.dataset.on = init ? "true" : "false";
-      desktop.addEventListener("click", () => { setPerfMode(!window.PERF_MODE); syncUI(); });
-    }
-    if (mobile) {
-      mobile.classList.toggle("on", init);
-      mobile.addEventListener("click", () => { setPerfMode(!window.PERF_MODE); syncUI(); });
-    }
-    syncUI();
-  })();
-
-  // One-time diagnostic log so APK/WebView issues can be triaged from logcat.
+  // One-time diagnostic log so WebView issues can be triaged from logcat.
   try {
     const wrap = document.querySelector(".viewer-wrap");
     const wr = wrap && wrap.getBoundingClientRect ? wrap.getBoundingClientRect() : { width: 0, height: 0 };
@@ -7383,8 +7367,7 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
       hardwareConcurrency: navigator.hardwareConcurrency,
       viewerCSSWidth: wr.width,
       viewerCSSHeight: wr.height,
-      features: FEATURE_SUPPORT,
-      perfMode: !!window.PERF_MODE
+      features: FEATURE_SUPPORT
     });
   } catch (_) {}
 
