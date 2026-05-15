@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="format-detection" content="telephone=no, email=no, address=no" />
 <meta name="theme-color" content="#cddeea" />
-<title>Map of Truth V1.1</title>
+<title>Map of Truth V1.3</title>
 <style>
   :root {
     --bg: #000000; /* default: black — user-selectable in Layers */
@@ -1166,6 +1166,48 @@
     }
   }
 
+  /* (v1.3) Performance Mode + WebView compatibility fallbacks.
+     - `body.perf-mode`: applied ONLY when the user toggles Performance Mode
+       in Layers.  Drops expensive GPU effects so menus stay responsive on
+       devices where the WebView GPU path is slow.  Never set automatically
+       based on phone age.
+     - `html.no-backdrop-filter`: set by JS feature-detection when neither
+       `backdrop-filter` nor `-webkit-backdrop-filter` is supported (some
+       Samsung WebViews, older Chromium forks).  Falls back to solid
+       translucent backgrounds so the panels remain legible.
+     - `html.no-transform3d` / `html.no-has` / `html.no-env`: defensive
+       hooks reserved for narrow future fallbacks. */
+  body.perf-mode,
+  body.perf-mode * {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  body.perf-mode * {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
+  body.perf-mode #premiumPanel,
+  body.perf-mode #premiumMobileSheet,
+  body.perf-mode .premium-panel,
+  body.perf-mode .pill,
+  body.perf-mode .toast {
+    background-color: rgba(11,15,22,0.94) !important;
+  }
+  html.no-backdrop-filter #premiumPanel,
+  html.no-backdrop-filter #premiumMobileSheet,
+  html.no-backdrop-filter .premium-panel,
+  html.no-backdrop-filter .pill,
+  html.no-backdrop-filter .toast,
+  html.no-backdrop-filter .modal-backdrop,
+  html.no-backdrop-filter .about-modal,
+  html.no-backdrop-filter .sidebar {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background-color: rgba(11,15,22,0.93) !important;
+  }
+  /* Legacy alias — kept so any leftover `.perf-low` rule still works. */
+  body.perf-low { /* identical to perf-mode for compatibility */ }
+
 </style>
 </head>
 <body>
@@ -1381,6 +1423,7 @@
         <label for="desktopBgColor">Background color</label>
         <select id="desktopBgColor">
           <option value="black" selected>Black</option>
+          <option value="sea">Sea (ocean blue)</option>
           <option value="ice">Antarctica (ice white)</option>
         </select>
       </div>
@@ -1391,19 +1434,18 @@
           <option value="ar">العربية (Arabic)</option>
         </select>
       </div>
+      <!-- (v1.3) Performance Mode — manual switch, default OFF.  Reduces
+           particle counts and disables backdrop-filter blurs / transitions
+           on devices where the WebView GPU path is slow.  Does NOT change
+           map quality, distance math, or default scale. -->
       <div class="row" style="margin-top:8px;">
         <div>
-          <label for="celestial3DToggle">3D celestial view</label>
-          <button id="celestial3DToggle" class="switch-toggle" type="button" data-on="false" aria-label="3D celestial view"></button>
+          <label for="perfModeToggle">Performance mode</label>
+          <button id="perfModeToggle" class="switch-toggle" type="button" data-on="false" aria-label="Performance mode"></button>
         </div>
-        <div class="small" id="celestial3DInfo" style="opacity:.8;align-self:end;padding-bottom:6px;">3D: Off</div>
+        <div class="small" style="opacity:.8;align-self:end;padding-bottom:6px;">Off (full quality)</div>
       </div>
-      <div style="margin-top:8px;">
-        <label for="celestial3DAngle">3D view angle</label>
-        <input id="celestial3DAngle" type="range" min="20" max="78" step="1" value="58" />
-        <input id="celestial3DAngleValue" type="text" value="58°" readonly style="margin-top:6px;" />
-      </div>
-      <div class="small" style="margin-top:8px;">White political map is the stable, fastest mode. Satellite mode is cached for smoother use.</div>
+      <div class="small" style="margin-top:8px;">White political map is the stable, fastest mode. Satellite mode is cached for smoother use. (3D celestial view has moved to the Celestials tab.)</div>
       <div class="row" style="margin-top:8px;">
         <div>
           <label for="toggleCoordLines">Coordinate lines</label>
@@ -1556,7 +1598,20 @@
     
     <div class="card">
       <h2>Celestials / Sun & Moon</h2>
+      <!-- (v1.2) 3D celestial view moved here from Map Layers and promoted to first option. -->
       <div class="row">
+        <div>
+          <label for="celestial3DToggle">3D celestial view</label>
+          <button id="celestial3DToggle" class="switch-toggle" type="button" data-on="false" aria-label="3D celestial view"></button>
+        </div>
+        <div class="small" id="celestial3DInfo" style="opacity:.8;align-self:end;padding-bottom:6px;">3D: Off</div>
+      </div>
+      <div style="margin-top:8px;">
+        <label for="celestial3DAngle">3D view angle</label>
+        <input id="celestial3DAngle" type="range" min="20" max="78" step="1" value="58" />
+        <input id="celestial3DAngleValue" type="text" value="58°" readonly style="margin-top:6px;" />
+      </div>
+      <div class="row" style="margin-top:8px;">
         <div>
           <label for="dayNightToggle">Day & Night</label>
           <button id="dayNightToggle" class="switch-toggle" type="button" data-on="false" aria-label="Day and night"></button>
@@ -1580,10 +1635,6 @@
       <div class="row" style="margin-top:8px;">
         <button id="dayNightNowBtn" type="button">Now</button>
         <button id="dayNightPlayBtn" type="button" data-on="false">Play</button>
-      </div>
-      <div class="row" style="margin-top:8px;">
-        <button id="dayNightStepBackBtn" type="button">-1 hour</button>
-        <button id="dayNightStepBtn" type="button">+1 hour</button>
       </div>
       <div style="margin-top:8px;">
         <label for="dayNightSpeed">Animation speed</label>
@@ -1648,7 +1699,7 @@
 
         <h2>Map of Truth</h2>
         <p>
-          <b>Version 1.1</b><br>
+          <b>Version 1.3</b><br>
           An interactive Azimuthal Equidistant (north-pole) map visualisation
           and measurement tool. Designed for educational exploration of
           different geometric distance models, live celestial events
@@ -1657,20 +1708,33 @@
 
         <hr>
 
-        <h2>What's New in V1.1</h2>
+        <h2>What's New in V1.3</h2>
         <ul>
+          <li><b>WebView compatibility pass</b> — removed the Android-version / DPR / core-count auto-downgrade. Visual quality is now full by default on every device. A manual <b>Performance Mode</b> switch lives in Layers; it only changes when you flip it.</li>
+          <li><b>Feature-detection fallbacks</b> — `backdrop-filter`, `:has()`, `env()`, and `transform: translateZ(0)` are probed via `CSS.supports`. Unsupported features get narrow CSS fallbacks (solid translucent panels) instead of a global quality drop.</li>
+          <li><b>Universal safe DPR cap</b> — every device renders at min(devicePixelRatio, 2.0). Performance Mode lowers the cap to 1.5; nothing ever drops below 1.0.</li>
+          <li><b>WebView diagnostics</b> — one-time `console.info` log on boot with userAgent, Android version, DPR, viewer size, feature support and performance-mode state for triage from logcat.</li>
+          <li><b>Try/catch around optional layers</b> — a failed render step (e.g. WebView quirk in radial gradient) no longer kills the whole app; the self-healing loop resumes on the next frame.</li>
+        </ul>
+        <h2>What's New in V1.2</h2>
+        <ul>
+          <li><b>Ursa Major (الدب الأكبر) constellation</b> — the seven stars of the Big Dipper added to the live celestial sphere with accurate RA/Dec coordinates.</li>
+          <li><b>3D planet names</b> now respect the active language (Arabic / English) — Mercury → عطارد, Jupiter → المشتري, etc.</li>
+          <li><b>Cleaner latitude / longitude labels</b> — shortened to just the coordinate value (23.44°N, 0°, 23.44°S) with stroke-on-fill text and no shadow boxes. Looks correct in both English and Arabic.</li>
+          <li><b>Smoother Sun/Moon scrub</b> — input-reflow throttled to 5 Hz during drag eliminates first-revolution stutter on mid-range devices.</li>
+          <li><b>Disabling Day/Night also stops playback</b> — fixes the "map stops refreshing on zoom after scrub" issue.</li>
+          <li><b>Performance scaling</b> — manual Performance Mode toggle in Layers replaces the older auto-downgrade. Detail level is your choice.</li>
+          <li><b>Geographic mode pre-rendered</b> — satellite texture loads at 600 ms (was 3 s), and the AE-projection cache rebuilds eagerly the moment any HQ tier arrives.</li>
           <li><b>Arabic language</b> — full UI translation (Tahoma, RTL) covering tabs, layers, search &amp; weather panels, measurement methods, planet and constellation names. Switch from Layers → Language.</li>
           <li><b>3D celestial view</b> — tilted sky-dome with elevated Sun, Moon, planets, and zodiac constellations. Drag the Sun/Moon horizontally to scrub time forwards or backwards.</li>
-          <li><b>Truth (BETA) scale recalibrated</b> — law of cosines on the AE-flat right-angle triangle. Equator full loop = 40 003 km, Capricorn full loop ≈ 50 448 km.</li>
-          <li><b>Gleason Scale recalibrated</b> — straight from Gleason's 1892 longitude diagram (radial-miles table + circumference = 360 × r), now produces correct anchors at every parallel.</li>
-          <li><b>Smooth Day/Night playback</b> on the satellite layer — routed through the cached canvas like the white map.</li>
-          <li><b>Sun/Moon time-scrub gesture</b> — touch and drag the Sun or Moon to scrub time. Fling for fast forward/reverse playback that decays back to ±1×.</li>
+          <li><b>Truth (BETA) scale</b> — law of cosines on the AE-flat right-angle triangle. Equator full loop = 40 003 km, Capricorn full loop ≈ 50 448 km.</li>
+          <li><b>Gleason Scale</b> — straight from Gleason's 1892 longitude diagram (radial-miles table + circumference = 360 × r).</li>
+          <li><b>Sun/Moon time-scrub gesture</b> — touch and drag to scrub time. Fling for fast forward/reverse playback that decays back to ±1×.</li>
           <li><b>Pan-locked at zoomed-out</b> — empty space around the disc becomes a time-scrub surface when the whole globe is visible.</li>
           <li><b>Ring rotation in Pan mode only</b> — Measure / Pin clicks on the south rim now hit-test for their primary action.</li>
-          <li><b>3D off → clean 2D</b> — exiting the 3D view now automatically clears Day/Night, Planets, and Constellations.</li>
-          <li><b>Terrain map removed</b> — replaced by the more useful Satellite imagery base.</li>
+          <li><b>3D off → clean 2D</b> — exiting the 3D view automatically clears Day/Night, Planets, and Constellations.</li>
           <li><b>Self-healing render loop</b> — quality-refresh after intense Sun/Moon scrub no longer stalls.</li>
-          <li><b>Polished mobile UI</b> — icon-based tabs, single-line status bar, scroll-reset on sheet collapse, locked map centring, units selector in Layers tab.</li>
+          <li><b>Polished mobile UI</b> — icon-based tabs, single-line status bar, scroll-reset on sheet collapse, locked map centring.</li>
         </ul>
 
         <hr>
@@ -1760,7 +1824,7 @@
           Built with vanilla HTML5 Canvas and JavaScript — no third-party frameworks. Astronomical formulas adapted from standard public-domain references (Meeus, NOAA Solar Position Algorithm).
         </p>
         <p style="font-size:11px;color:var(--muted);">
-          © 2024–2026 Map of Truth. All rights reserved.
+          © 2026 Map of Truth. All rights reserved.
         </p>
 
       </div>
@@ -1922,6 +1986,7 @@
           <label for="pmBgColor">Background color</label>
           <select id="pmBgColor">
             <option value="black" selected>Black</option>
+            <option value="sea">Sea (ocean blue)</option>
             <option value="ice">Antarctica (ice white)</option>
           </select>
         </div>
@@ -1933,16 +1998,11 @@
             <option value="miles">Miles</option>
           </select>
         </div>
-        <button id="pmCelestial3D" type="button" class="premium-row toggle-row"><span>3D celestial view</span><i class="mini-switch"></i></button>
-        <div id="pmCelestial3DInfo" class="premium-value" style="padding:0 12px 4px;">3D: Off</div>
-        <div class="premium-control">
-          <label for="pmCelestial3DAngle">3D view angle</label>
-          <input id="pmCelestial3DAngle" type="range" min="20" max="78" step="1" value="58" />
-          <div id="pmCelestial3DAngleValue" class="premium-value">58°</div>
-        </div>
         <button id="pmCoords" type="button" class="premium-row toggle-row"><span>Coordinate lines</span><i class="mini-switch"></i></button>
         <button id="pmCities" type="button" class="premium-row toggle-row"><span>City labels</span><i class="mini-switch"></i></button>
         <button id="pmBorders" type="button" class="premium-row toggle-row"><span>Borders</span><i class="mini-switch"></i></button>
+        <!-- (v1.3) Manual Performance Mode toggle (mobile).  Default OFF. -->
+        <button id="pmPerfMode" type="button" class="premium-row toggle-row"><span>Performance mode</span><i class="mini-switch"></i></button>
         <button id="pmFit" type="button" class="premium-row"><span>Fit map</span><b>Reset</b></button>
         <div class="premium-control">
           <label for="pmLanguage">Language</label>
@@ -1977,6 +2037,14 @@
       </div>
 
       <div class="premium-panel" data-panel="day">
+        <!-- (v1.2) 3D celestial view moved here from Map Layers; first option. -->
+        <button id="pmCelestial3D" type="button" class="premium-row toggle-row"><span>3D celestial view</span><i class="mini-switch"></i></button>
+        <div id="pmCelestial3DInfo" class="premium-value" style="padding:0 12px 4px;">3D: Off</div>
+        <div class="premium-control">
+          <label for="pmCelestial3DAngle">3D view angle</label>
+          <input id="pmCelestial3DAngle" type="range" min="20" max="78" step="1" value="58" />
+          <div id="pmCelestial3DAngleValue" class="premium-value">58°</div>
+        </div>
         <button id="pmDayNight" type="button" class="premium-row toggle-row"><span>Day & Night</span><i class="mini-switch"></i></button>
         <button id="pmISS" type="button" class="premium-row toggle-row"><span>ISS live</span><i class="mini-switch"></i></button>
         <button id="pmISSPlay" type="button" class="premium-row toggle-row"><span>ISS Playback</span><i class="mini-switch"></i></button>
@@ -2011,10 +2079,6 @@
         <div class="premium-grid2">
           <button id="pmDayNow" type="button" class="premium-row center">Now</button>
           <button id="pmDayPlay" type="button" class="premium-row center">Play</button>
-        </div>
-        <div class="premium-grid2">
-          <button id="pmDayBack" type="button" class="premium-row center">-1 hour</button>
-          <button id="pmDayForward" type="button" class="premium-row center">+1 hour</button>
         </div>
       </div>
     </div>
@@ -2341,6 +2405,10 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
 
   const canvas = document.getElementById("viewer");
   const ctx = canvas.getContext("2d");
+  // (v1.2) Force canvas text direction LTR so Arabic <html dir="rtl"> does
+  // not flip ctx.textAlign="start" into right-anchored — that was offsetting
+  // every weather / temperature / visibility badge from its background box.
+  try { canvas.setAttribute("dir", "ltr"); ctx.direction = "ltr"; } catch (_) {}
   const mapLayer = document.getElementById("mapLayer");
 
   const ui = {
@@ -3829,19 +3897,25 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
   }
 
   function resizeCanvas() {
-    // Cap DPR: low-end Android → 1.0 (huge perf win), mid Android → 1.5,
-    // iOS / desktop → 2.0 max (Retina looks sharp without overdraw penalty).
+    // (v1.3) Universal DPR cap.  No platform/age-based branching — every
+    // device gets full-quality min(DPR, 2.0) by default, and the optional
+    // Performance Mode toggle clamps to 1.5 (still crisp on 3× screens,
+    // ~44 % fewer pixels).  Quality never drops below 1.0.
     const rawDpr = window.devicePixelRatio || 1;
-    const dpr = IS_ANDROID_LOW ? Math.min(rawDpr, 1.0)
-              : IS_ANDROID     ? Math.min(rawDpr, 1.5)
-              :                  Math.min(rawDpr, 2.0);
-    const wrapRect = document.querySelector('.viewer-wrap')?.getBoundingClientRect();
-    const rect = (state && state.celestial3DEnabled && wrapRect) ? wrapRect : canvas.getBoundingClientRect();
-    canvas.width = Math.round(rect.width * dpr);
-    canvas.height = Math.round(rect.height * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    updateMapTransform();
-    draw();
+    const cap = (typeof window !== "undefined" && window.PERF_MODE) ? 1.5 : 2.0;
+    let dpr = Math.min(rawDpr, cap);
+    if (!(dpr > 0)) dpr = 1;          // safety against weird WebView values
+    try {
+      const wrapRect = document.querySelector('.viewer-wrap')?.getBoundingClientRect();
+      const rect = (state && state.celestial3DEnabled && wrapRect) ? wrapRect : canvas.getBoundingClientRect();
+      canvas.width = Math.max(1, Math.round(rect.width * dpr));
+      canvas.height = Math.max(1, Math.round(rect.height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    } catch (e) {
+      try { console.warn("[MapOfTruth] resizeCanvas fallback:", e); } catch(_) {}
+    }
+    try { updateMapTransform(); } catch (_) {}
+    try { draw(); } catch (_) {}
   }
 
   function zoomAt(screenX, screenY, factor) {
@@ -5102,7 +5176,12 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
   function rebuildVectorMapCache() {
     if (!state.image) return null;
 
-    const cacheScale = state.vectorMapCacheScale || 2.75;
+    // (v1.2) Geographic mode uses a HIGHER cache scale than other modes so
+    // the pre-rendered AE image stays crisp even at deep zoom — no need for
+    // per-frame texture warping or "zoom-to-enhance" tile loads.
+    const isGeo = state.terrainMode === "geographic";
+    const baseCacheScale = state.vectorMapCacheScale || 2.75;
+    const cacheScale = isGeo ? Math.max(baseCacheScale, 4.0) : baseCacheScale;
     state.vectorMapCacheScale = cacheScale;
     const w = Math.ceil(state.image.width * cacheScale);
     const h = Math.ceil(state.image.height * cacheScale);
@@ -5170,7 +5249,8 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
         { lat: 0, label: "0°" },
         { lat: -23.44, label: "23.44°S" }
       ];
-      cctx.font = "12px Inter, Arial, sans-serif";
+      cctx.font = "700 12px Inter, Arial, sans-serif";
+      cctx.textBaseline = "middle";
       for (const item of keyLats) {
         cctx.beginPath();
         for (let lon = -180; lon <= 180; lon += 2) {
@@ -5182,15 +5262,17 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
         cctx.lineWidth = 1.45;
         cctx.stroke();
 
+        // (v1.2) No shadow box — direct stroke+fill on the label text.
         const labelPt = cacheLatLonToPoint(item.lat, 105);
-        cctx.fillStyle = "rgba(5,8,13,0.72)";
-        const tw = cctx.measureText(item.label).width + 10;
-        cctx.fillRect(labelPt.x + 6, labelPt.y - 16, tw, 18);
+        cctx.lineWidth = 3.5;
+        cctx.strokeStyle = "rgba(0,0,0,0.85)";
+        cctx.strokeText(item.label, labelPt.x + 11, labelPt.y - 6);
         cctx.fillStyle = item.lat === 0 ? "#7cdda0" : "#ffc16b";
-        cctx.fillText(item.label, labelPt.x + 11, labelPt.y - 3);
+        cctx.fillText(item.label, labelPt.x + 11, labelPt.y - 6);
       }
+      cctx.textBaseline = "alphabetic";
 
-      // Meridians
+      // Meridians (longitude labels) — same shadow-box-free treatment.
       for (let lon = -180; lon < 180; lon += 15) {
         cctx.beginPath();
         for (let lat = 90; lat >= -90; lat -= 2) {
@@ -5205,18 +5287,120 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
 
         if (isMain) {
           const lp = cacheLatLonToPoint(-83, lon);
-          const label = lon === 0 ? "0° Meridian" : `${lon}°`;
-          const tw = cctx.measureText(label).width + 8;
-          cctx.fillStyle = "rgba(5,8,13,0.58)";
-          cctx.fillRect(lp.x - tw / 2, lp.y - 8, tw, 16);
+          // (v1.2) Use the short form even for lon==0 (was "0° Meridian").
+          const label = `${lon}°`;
+          const tw = cctx.measureText(label).width;
+          cctx.lineWidth = 3;
+          cctx.strokeStyle = "rgba(0,0,0,0.85)";
+          cctx.strokeText(label, lp.x - tw / 2, lp.y + 4);
           cctx.fillStyle = "rgba(180,210,255,0.95)";
-          cctx.fillText(label, lp.x - tw / 2 + 4, lp.y + 4);
+          cctx.fillText(label, lp.x - tw / 2, lp.y + 4);
         }
       }
     }
 
     function drawAntarcticaToCache() {
-      if (state.terrainMode === "satellite" || state.terrainMode === "imagery" || state.terrainMode === "geographic") return;
+      if (state.terrainMode === "satellite" || state.terrainMode === "imagery") return;
+      // (v1.2) Geographic mode gets a dedicated high-res snow/mountain
+      // rendering of Antarctica (was previously a flat solid disc baked
+      // into the cache).  Now: layered ice gradient + scattered peak
+      // triangles + bright crisp coast stroke.
+      if (state.terrainMode === "geographic") {
+        cctx.save();
+        cctx.beginPath();
+        for (let i = 0; i < ANTARCTIC_COAST.length; i++) {
+          const [lon, lat] = ANTARCTIC_COAST[i];
+          const p = latLonToImagePoint(lat, lon);
+          if (i === 0) cctx.moveTo(p.x, p.y); else cctx.lineTo(p.x, p.y);
+        }
+        for (let lon = 180; lon >= -180; lon -= 2) {
+          const p = latLonToImagePoint(-89.5, lon);
+          cctx.lineTo(p.x, p.y);
+        }
+        cctx.closePath();
+        // Base ice fill
+        cctx.fillStyle = "rgba(244,250,255,0.99)";
+        cctx.fill();
+        // Snow gradient (slightly bluer near coast, brighter toward pole)
+        const polePt = latLonToImagePoint(-89.5, 0);
+        const coastPt = latLonToImagePoint(-65, 0);
+        const rGrad = Math.hypot(coastPt.x - polePt.x, coastPt.y - polePt.y);
+        cctx.save();
+        cctx.clip();
+        const ig = cctx.createRadialGradient(polePt.x, polePt.y, 0, polePt.x, polePt.y, rGrad);
+        ig.addColorStop(0, "rgba(255,255,255,1)");
+        ig.addColorStop(0.55, "rgba(238,246,253,1)");
+        ig.addColorStop(1, "rgba(206,222,234,0.95)");
+        cctx.fillStyle = ig;
+        cctx.fillRect(polePt.x - rGrad, polePt.y - rGrad, rGrad * 2, rGrad * 2);
+        // Subtle snow speckle (small white dots) — restrained on low-end
+        const speckleCount = (typeof window !== "undefined" && window.IS_ANDROID_LOW) ? 220 : 900;
+        cctx.fillStyle = "rgba(255,255,255,0.85)";
+        // Deterministic pseudo-random so cache rebuilds stay identical.
+        let rs = 1357;
+        const rnd = () => { rs = (rs * 9301 + 49297) % 233280; return rs / 233280; };
+        for (let i = 0; i < speckleCount; i++) {
+          const a = rnd() * Math.PI * 2;
+          const dr = Math.sqrt(rnd()) * rGrad;
+          const sx = polePt.x + Math.cos(a) * dr;
+          const sy = polePt.y + Math.sin(a) * dr;
+          const sz = 0.6 + rnd() * 1.4;
+          cctx.fillRect(sx, sy, sz, sz);
+        }
+        // Mountain triangles — Transantarctic-style scattered peaks.
+        // Hand-picked rough peak locations (lat, lon, sizePx).
+        const peaks = [
+          [-79, 85, 7],   [-76,  60, 6],   [-72,  35, 5],
+          [-78,   5, 6],  [-83, 160, 8],   [-86, -150, 7],
+          [-81, -100, 6], [-77, -60, 5],   [-74, -120, 5],
+          [-82,  10, 5],  [-85,  90, 6],   [-78, 130, 6],
+          [-75, -30, 5],  [-80, -170, 6],  [-83,  50, 5],
+          [-77, 105, 5],  [-79, -85, 5],   [-72, -10, 4]
+        ];
+        for (const [plat, plon, sz] of peaks) {
+          const pp = latLonToImagePoint(plat, plon);
+          // Dark rock (south-facing slope)
+          cctx.fillStyle = "rgba(105,118,138,0.95)";
+          cctx.beginPath();
+          cctx.moveTo(pp.x, pp.y - sz);
+          cctx.lineTo(pp.x - sz * 0.95, pp.y + sz * 0.6);
+          cctx.lineTo(pp.x + sz * 0.95, pp.y + sz * 0.6);
+          cctx.closePath();
+          cctx.fill();
+          // Snow cap (north-facing slope)
+          cctx.fillStyle = "rgba(255,255,255,0.98)";
+          cctx.beginPath();
+          cctx.moveTo(pp.x, pp.y - sz);
+          cctx.lineTo(pp.x - sz * 0.45, pp.y - sz * 0.05);
+          cctx.lineTo(pp.x + sz * 0.45, pp.y - sz * 0.05);
+          cctx.closePath();
+          cctx.fill();
+          // Crisp outline
+          cctx.strokeStyle = "rgba(60,75,95,0.7)";
+          cctx.lineWidth = 0.5;
+          cctx.beginPath();
+          cctx.moveTo(pp.x, pp.y - sz);
+          cctx.lineTo(pp.x - sz * 0.95, pp.y + sz * 0.6);
+          cctx.lineTo(pp.x + sz * 0.95, pp.y + sz * 0.6);
+          cctx.closePath();
+          cctx.stroke();
+        }
+        cctx.restore();
+        // Crisp coast stroke on top
+        cctx.beginPath();
+        for (let i = 0; i < ANTARCTIC_COAST.length; i++) {
+          const [lon, lat] = ANTARCTIC_COAST[i];
+          const p = latLonToImagePoint(lat, lon);
+          if (i === 0) cctx.moveTo(p.x, p.y); else cctx.lineTo(p.x, p.y);
+        }
+        cctx.strokeStyle = "rgba(120,145,170,0.9)";
+        cctx.lineWidth = 1.4;
+        cctx.stroke();
+        cctx.restore();
+        // Sub-Antarctic islands
+        drawSubAntarcticIslands(cctx, p => p, (lat, lon) => latLonToImagePoint(lat, lon), 1);
+        return;
+      }
       const fill = antarcticaFillColor();
       if (!fill) return;
       cctx.save();
@@ -5384,11 +5568,12 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
       drawSatelliteDirect();
       return;
     }
-    // Geographic = lightweight cached satellite thumbnail.  No XYZ tile load.
-    if (!moving && state.terrainMode === "geographic" && state.satelliteTextureReady) {
-      drawSatelliteDirect();
-      return;
-    }
+    // (v1.2) Geographic = ONE crisp pre-rendered AE image — no per-frame
+    // texture warping ever.  Route ALL frames through the persistent
+    // vector-map cache (single drawImage with transform).  The cache itself
+    // is built once on satellite-texture load and survives mode switches,
+    // pan / zoom and scrub; it's only rebuilt when the texture upgrades
+    // (thumbnail → 4K → 8K).  Falls through to the cache-blit path below.
     if (!moving && state.scale >= 2.2 && state.terrainMode !== "imagery" && state.terrainMode !== "satellite" && state.terrainMode !== "geographic") {
       drawVectorGeneratedMap();
       return;
@@ -5598,14 +5783,19 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
       ctx.stroke();
     }
 
-    // Exact tropics and equator
+    // Exact tropics and equator.
+    // (v1.2) Labels shortened to just the coordinate value (e.g. "23.44°N")
+    // and rendered with a stroke-then-fill on the text directly — no shadow
+    // boxes.  This keeps the labels visually consistent in both English
+    // and Arabic (the box used to mis-align around RTL text).
     const keyLats = [
-      { lat: 23.44, label: "Tropic of Cancer 23.44°N" },
-      { lat: 0, label: "Equator 0°" },
-      { lat: -23.44, label: "Tropic of Capricorn 23.44°S" }
+      { lat:  23.44, label: "23.44°N" },
+      { lat:  0,     label: "0°"      },
+      { lat: -23.44, label: "23.44°S" }
     ];
-    ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.font = "700 12px Inter, Arial, sans-serif";
     ctx.lineWidth = 1.5;
+    ctx.textBaseline = "middle";
     for (const item of keyLats) {
       ctx.beginPath();
       for (let lon = -180; lon <= 180; lon += 2) {
@@ -5617,14 +5807,18 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
       ctx.stroke();
 
       const labelPt = imageToScreen(latLonToImagePoint(item.lat, 105));
-      ctx.fillStyle = "rgba(5,8,13,0.72)";
-      const w = ctx.measureText(item.label).width + 10;
-      ctx.fillRect(labelPt.x + 6, labelPt.y - 16, w, 18);
+      const tx = labelPt.x + 11, ty = labelPt.y - 6;
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = "rgba(0,0,0,0.85)";
+      ctx.strokeText(item.label, tx, ty);
       ctx.fillStyle = item.lat === 0 ? "#7cdda0" : "#ffc16b";
-      ctx.fillText(item.label, labelPt.x + 11, labelPt.y - 3);
+      ctx.fillText(item.label, tx, ty);
+      ctx.lineWidth = 1.5;
     }
+    ctx.textBaseline = "alphabetic";
 
-    // Longitude meridians
+    // Longitude meridians.
+    // (v1.2) Same treatment — stroke + fill on the label, no box.
     for (let lon = -180; lon < 180; lon += 15) {
       ctx.beginPath();
       for (let lat = 90; lat >= -90; lat -= 2) {
@@ -5640,11 +5834,12 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
       if (isMain) {
         const lp = imageToScreen(latLonToImagePoint(-83, lon));
         const label = `${lon}°`;
-        ctx.fillStyle = "rgba(5,8,13,0.66)";
-        const w = ctx.measureText(label).width + 8;
-        ctx.fillRect(lp.x - w / 2, lp.y - 8, w, 16);
+        const w = ctx.measureText(label).width;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        ctx.strokeText(label, lp.x - w / 2, lp.y + 4);
         ctx.fillStyle = "rgba(180,210,255,0.95)";
-        ctx.fillText(label, lp.x - w / 2 + 4, lp.y + 4);
+        ctx.fillText(label, lp.x - w / 2, lp.y + 4);
       }
     }
 
@@ -6926,14 +7121,42 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
       }
     }
     mctx.putImageData(img, 0, 0);
+    // (v1.2) More realistic Moon — denser crater field, with darker centres
+    // and faint highlighted rims for a 3D-relief look.
     mctx.save();
-    mctx.globalAlpha = opts.craterAlpha || 0.18;
-    mctx.fillStyle = "rgba(62,70,92,0.70)";
-    [[-0.22, 0.18, 0.12], [0.26, -0.24, 0.08], [0.16, 0.30, 0.06], [-0.34, -0.20, 0.055]].forEach(([cx, cy, cr]) => {
-      mctx.beginPath();
-      mctx.arc(c + cx * r, c + cy * r, cr * r, 0, Math.PI * 2);
-      mctx.fill();
-    });
+    // (v1.2) Halve crater count on Android-low to keep frame time in budget.
+    const _isLow = (typeof window !== "undefined" && window.IS_ANDROID_LOW);
+    const craters = _isLow ? [
+      [-0.22,  0.18, 0.12],
+      [ 0.26, -0.24, 0.085],
+      [-0.05, -0.05, 0.060],
+      [ 0.40,  0.08, 0.045]
+    ] : [
+      // [cx, cy, radius] — normalised to disc radius
+      [-0.22,  0.18, 0.12],
+      [ 0.26, -0.24, 0.085],
+      [ 0.16,  0.30, 0.065],
+      [-0.34, -0.20, 0.055],
+      [ 0.40,  0.08, 0.045],
+      [-0.05, -0.05, 0.060],   // Mare-style dark blot near centre
+      [-0.45,  0.05, 0.035],
+      [ 0.08,  0.42, 0.040]
+    ];
+    for (const [cx, cy, cr] of craters) {
+      const ccx = c + cx * r, ccy = c + cy * r, ccr = cr * r;
+      // Soft dark fill (crater interior)
+      mctx.globalAlpha = opts.craterAlpha || 0.20;
+      const cg = mctx.createRadialGradient(ccx, ccy, 0, ccx, ccy, ccr);
+      cg.addColorStop(0, "rgba(40,46,60,0.85)");
+      cg.addColorStop(1, "rgba(85,92,110,0.20)");
+      mctx.fillStyle = cg;
+      mctx.beginPath(); mctx.arc(ccx, ccy, ccr, 0, Math.PI * 2); mctx.fill();
+      // Thin bright rim — adds 3D pop
+      mctx.globalAlpha = 0.18;
+      mctx.strokeStyle = "rgba(245,250,255,0.90)";
+      mctx.lineWidth = 1;
+      mctx.beginPath(); mctx.arc(ccx, ccy, ccr * 0.95, -0.6, Math.PI - 0.6); mctx.stroke();
+    }
     mctx.restore();
     targetCtx.save();
     if (opts.glow) {
@@ -6986,20 +7209,24 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
     targetCtx.arc(x, y, r, 0, Math.PI * 2);
     targetCtx.fill();
 
-    targetCtx.save();
-    targetCtx.beginPath();
-    targetCtx.arc(x, y, r, 0, Math.PI * 2);
-    targetCtx.clip();
-    targetCtx.globalAlpha = opts.detailAlpha || 0.20;
-    targetCtx.strokeStyle = "rgba(145,50,8,0.45)";
-    targetCtx.lineWidth = Math.max(0.8, r * 0.10);
-    [-0.36, -0.08, 0.20, 0.43].forEach(k => {
+    // (v1.2) Skip the limb-darkening curves on Android-low devices —
+    // each is a clipped bezier stroke, expensive in aggregate.
+    if (!(typeof window !== "undefined" && window.IS_ANDROID_LOW)) {
+      targetCtx.save();
       targetCtx.beginPath();
-      targetCtx.moveTo(x - r * 0.9, y + k * r);
-      targetCtx.bezierCurveTo(x - r * 0.25, y + (k - 0.16) * r, x + r * 0.35, y + (k + 0.16) * r, x + r * 0.95, y + k * r);
-      targetCtx.stroke();
-    });
-    targetCtx.restore();
+      targetCtx.arc(x, y, r, 0, Math.PI * 2);
+      targetCtx.clip();
+      targetCtx.globalAlpha = opts.detailAlpha || 0.20;
+      targetCtx.strokeStyle = "rgba(145,50,8,0.45)";
+      targetCtx.lineWidth = Math.max(0.8, r * 0.10);
+      [-0.36, -0.08, 0.20, 0.43].forEach(k => {
+        targetCtx.beginPath();
+        targetCtx.moveTo(x - r * 0.9, y + k * r);
+        targetCtx.bezierCurveTo(x - r * 0.25, y + (k - 0.16) * r, x + r * 0.35, y + (k + 0.16) * r, x + r * 0.95, y + k * r);
+        targetCtx.stroke();
+      });
+      targetCtx.restore();
+    }
 
     targetCtx.strokeStyle = opts.stroke || "rgba(255,244,190,0.82)";
     targetCtx.lineWidth = opts.lineWidth || 1.8;
@@ -7012,19 +7239,154 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
     return new Date();
   }
 
-  // V76+: Device detection for adaptive rendering.
-  // iOS Safari: slow compositing → reduce terminator pts + twilight layers while animating.
-  // Android: detect mid/low-end via hardwareConcurrency + DPR to cap canvas resolution.
+  // (v1.3) PLATFORM & COMPATIBILITY DETECTION
+  // ---------------------------------------------------------------
+  // The v1.2 release auto-downgraded Android based on OS version, DPR,
+  // and core count.  Real-device testing showed that approach was wrong:
+  // a brand-new Samsung 2026 phone can have stricter WebView quirks than
+  // an old Oppo, and a high DPR alone does not mean "slow".  The new
+  // policy: NEVER reduce visual quality automatically based on phone age,
+  // DPR, or core count.  Reduce only when (a) the user explicitly enables
+  // "Performance mode" in settings, or (b) a specific CSS/JS feature is
+  // detected as unsupported, in which case we fall back narrowly.
   const IS_IOS = (typeof navigator !== "undefined") && (
     /iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
   );
   const IS_ANDROID = (typeof navigator !== "undefined") && /Android/i.test(navigator.userAgent);
-  // Mid/low-end Android: ≤4 cores or screen DPR > 2 on a small screen (cheap high-DPI panels).
-  const IS_ANDROID_LOW = IS_ANDROID && (
-    (navigator.hardwareConcurrency || 4) <= 4 ||
-    ((window.devicePixelRatio || 1) > 2.5)
+  const ANDROID_VER = (function(){
+    if (!IS_ANDROID) return Infinity;
+    try {
+      const m = /Android\s+(\d+)/i.exec(navigator.userAgent || "");
+      return m ? parseInt(m[1], 10) : Infinity;
+    } catch (_) { return Infinity; }
+  })();
+  // WebView detection — used only for diagnostics, never for downgrades.
+  const IS_WEBVIEW = (typeof navigator !== "undefined") && (
+    /\bwv\b/.test(navigator.userAgent || "") ||
+    / Version\/[\d.]+ Chrome\/[\d.]+ Mobile/.test(navigator.userAgent || "")
   );
+  // (v1.3) IS_ANDROID_LOW / IS_ANDROID_VLOW removed as auto-detected flags.
+  // We keep the symbols as window-level getters that read the user-controlled
+  // PERF_MODE switch, so the existing call-sites elsewhere in the file remain
+  // valid without any auto-downgrade behaviour.
+  if (typeof window !== "undefined") {
+    if (!("PERF_MODE" in window)) {
+      try {
+        const saved = localStorage.getItem("mot_perf_mode");
+        window.PERF_MODE = saved === "1";
+      } catch (_) { window.PERF_MODE = false; }
+    }
+    Object.defineProperty(window, "IS_ANDROID_LOW",  { configurable: true, get(){ return !!window.PERF_MODE; } });
+    Object.defineProperty(window, "IS_ANDROID_VLOW", { configurable: true, get(){ return false; } });
+  }
+  // Local aliases that match the historical names but follow the new rule:
+  // they reflect PERF_MODE only, never the device profile.
+  let IS_ANDROID_LOW  = !!(typeof window !== "undefined" && window.PERF_MODE);
+  let IS_ANDROID_VLOW = false;
+
+  // CSS feature detection — runs once.  Falls back to safe alternatives only
+  // when a feature actually is not supported, not because the OS is old.
+  const FEATURE_SUPPORT = (function(){
+    const css = (typeof CSS !== "undefined" && CSS.supports) ? CSS.supports.bind(CSS) : null;
+    const safe = (q) => { try { return !!(css && css(q)); } catch (_) { return false; } };
+    return {
+      backdropFilter:
+        safe("backdrop-filter: blur(4px)") ||
+        safe("-webkit-backdrop-filter: blur(4px)"),
+      has: safe("selector(:has(*))"),
+      env: safe("padding: env(safe-area-inset-top)"),
+      transform3d: safe("transform: translateZ(0)"),
+      gap: safe("gap: 4px"),
+      colorMix: safe("color: color-mix(in srgb, red, blue)")
+    };
+  })();
+  try {
+    if (document && document.documentElement) {
+      const cls = document.documentElement.classList;
+      if (!FEATURE_SUPPORT.backdropFilter) cls.add("no-backdrop-filter");
+      if (!FEATURE_SUPPORT.has)            cls.add("no-has");
+      if (!FEATURE_SUPPORT.env)            cls.add("no-env");
+      if (!FEATURE_SUPPORT.transform3d)    cls.add("no-transform3d");
+    }
+  } catch (_) {}
+
+  // Performance-mode toggle.  Default OFF.  When ON, the long-standing
+  // IS_ANDROID_LOW call sites become active (fewer flecks, smaller crater
+  // set, etc.) — but DPR stays at the universal cap, never below 1.0.
+  function setPerfMode(on) {
+    on = !!on;
+    try { window.PERF_MODE = on; } catch (_) {}
+    try { localStorage.setItem("mot_perf_mode", on ? "1" : "0"); } catch (_) {}
+    IS_ANDROID_LOW = on;
+    try {
+      if (document.body) document.body.classList.toggle("perf-mode", on);
+    } catch (_) {}
+    try { if (typeof resizeCanvas === "function") resizeCanvas(); } catch (_) {}
+    try { if (typeof draw === "function") draw(); } catch (_) {}
+  }
+  // Sync class on boot in case PERF_MODE was restored from localStorage.
+  try {
+    const apply = () => {
+      try {
+        if (document.body) document.body.classList.toggle("perf-mode", !!window.PERF_MODE);
+      } catch (_) {}
+    };
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", apply);
+    } else { apply(); }
+  } catch (_) {}
+  try { window.setPerfMode = setPerfMode; } catch (_) {}
+
+  // Wire the Performance Mode UI switches (desktop + mobile).  Safe to call
+  // even if the elements are missing in some future layout — every lookup
+  // is null-checked.
+  (function wirePerfModeUI(){
+    const init = !!window.PERF_MODE;
+    const desktop = document.getElementById("perfModeToggle");
+    const mobile  = document.getElementById("pmPerfMode");
+    function syncUI() {
+      const on = !!window.PERF_MODE;
+      if (desktop) {
+        desktop.dataset.on = on ? "true" : "false";
+        desktop.setAttribute("aria-pressed", on ? "true" : "false");
+        // Update the inline status hint next to the desktop toggle.
+        const hint = desktop.parentElement && desktop.parentElement.parentElement
+          ? desktop.parentElement.parentElement.querySelector(".small")
+          : null;
+        if (hint) hint.textContent = on ? "On (lighter effects)" : "Off (full quality)";
+      }
+      if (mobile)  mobile.classList.toggle("on", on);
+    }
+    if (desktop) {
+      desktop.dataset.on = init ? "true" : "false";
+      desktop.addEventListener("click", () => { setPerfMode(!window.PERF_MODE); syncUI(); });
+    }
+    if (mobile) {
+      mobile.classList.toggle("on", init);
+      mobile.addEventListener("click", () => { setPerfMode(!window.PERF_MODE); syncUI(); });
+    }
+    syncUI();
+  })();
+
+  // One-time diagnostic log so APK/WebView issues can be triaged from logcat.
+  try {
+    const wrap = document.querySelector(".viewer-wrap");
+    const wr = wrap && wrap.getBoundingClientRect ? wrap.getBoundingClientRect() : { width: 0, height: 0 };
+    console.info("[MapOfTruth diagnostics]", {
+      userAgent: navigator.userAgent,
+      isAndroid: IS_ANDROID,
+      androidVer: ANDROID_VER,
+      isIOS: IS_IOS,
+      isWebView: IS_WEBVIEW,
+      devicePixelRatio: window.devicePixelRatio,
+      hardwareConcurrency: navigator.hardwareConcurrency,
+      viewerCSSWidth: wr.width,
+      viewerCSSHeight: wr.height,
+      features: FEATURE_SUPPORT,
+      perfMode: !!window.PERF_MODE
+    });
+  } catch (_) {}
 
   function drawDayNightLayer() {
     if (!state.dayNightEnabled) return;
@@ -7133,15 +7495,15 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
     ctx.fillStyle = dg;
     ctx.fillRect(centerPt.x - R, centerPt.y - R, R * 2, R * 2);
 
-    // === Terminator dashed line (crisp, drawn on top) ===
+    // (v1.2) Terminator line — solid soft amber, no dashes.  The dashed
+    // pattern was visually noisy and read as "orange crosses" rather than
+    // a clean day/night boundary.
     ctx.beginPath();
     termPts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
     ctx.closePath();
-    ctx.strokeStyle = "rgba(255,215,130,0.82)";
-    ctx.lineWidth = Math.max(1.4, Math.min(2.8, 1.4 * Math.sqrt(Math.max(1, state.scale))));
-    ctx.setLineDash([9, 6]);
+    ctx.strokeStyle = "rgba(255,205,120,0.55)";
+    ctx.lineWidth = Math.max(1, Math.min(2.0, 1.0 * Math.sqrt(Math.max(1, state.scale))));
     ctx.stroke();
-    ctx.setLineDash([]);
 
     ctx.restore();
 
@@ -9788,6 +10150,13 @@ const VECTOR_MAP_DATA = {"coasts":[[[180,68.99],[179.53,64.79],[178.65,64.59],[1
       const on = !toggleButtonState(ui.dayNightToggle);
       setToggleButton(ui.dayNightToggle, on);
       state.dayNightEnabled = on;
+      // (v1.2) Turning OFF Day/Night must also stop playback — otherwise the
+      // playback flag stays true and the render pipeline keeps thinking the
+      // scene is "moving", which leaves the satellite layer on its low-res
+      // cached path and never refreshes high-res tiles on zoom.
+      if (!on && typeof setDayNightPlaying === "function") {
+        setDayNightPlaying(false);
+      }
       state.vectorMapCacheDirty = true;
       draw();
     });
@@ -12227,8 +12596,13 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
   }
 
   // Background colour selector — synced across desktop sidebar + mobile layers tab.
+  // (v1.2) Added "sea" option — same ocean blue used inside the satellite-mode
+  // map disc (#0b5f91), giving a seamless look when the disc doesn't fill
+  // the viewport.
   function applyBgColor(val) {
-    const color = (val === "ice") ? "#cddeea" : "#000000";
+    const color = (val === "ice") ? "#cddeea"
+                : (val === "sea") ? "#0b5f91"
+                : "#000000";
     document.documentElement.style.setProperty("--bg", color);
     document.body.style.background = color;
     // Keep all background selectors in sync
@@ -12470,6 +12844,11 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
     pmDayNight.addEventListener("click", () => {
       state.dayNightEnabled = !state.dayNightEnabled;
       if (ui.dayNightToggle) setToggleButton(ui.dayNightToggle, state.dayNightEnabled);
+      // (v1.2) Mirror desktop: turning OFF Day/Night must stop playback so
+      // the renderer doesn't keep thinking the scene is moving.
+      if (!state.dayNightEnabled && typeof setDayNightPlaying === "function") {
+        setDayNightPlaying(false);
+      }
       pmSyncButtons();
       draw();
     });
@@ -13073,7 +13452,11 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
     }
     ctx.restore();
 
-    if (!movingDayNight) drawNightLightsForDate(date);
+    // (v1.2) Always render night lights, even during pan/scrub/playback.
+    // The previous "skip while moving" optimisation made the lights blink
+    // out during interaction, which the user noticed as inconsistency.
+    // The list is short (~30 cities) so the cost is negligible.
+    drawNightLightsForDate(date);
   };
 
   updateISSInfoAll();
@@ -14557,7 +14940,31 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
       { name:"Capricornus", stars:[[304,-12],[314,-16],[324,-18],[332,-14],[326,-10],[316,-9]], lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,0]] },
       { name:"Aquarius", stars:[[330,-5],[338,-2],[346,-6],[354,-10],[2,-8],[10,-4],[18,-8]], lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6]] },
       { name:"Pisces", stars:[[350,8],[358,10],[8,7],[18,5],[28,7],[20,13],[10,15],[0,13]], lines:[[0,1],[1,2],[2,3],[3,4],[2,5],[5,6],[6,7],[7,0]] },
-      { name:"Orion", stars:[[78,-8],[83,-5],[88,-2],[81,-1],[86,6],[90,-7],[95,7]], lines:[[0,1],[1,2],[3,4],[1,5],[2,6],[4,6],[3,0]] }
+      { name:"Orion", stars:[[78,-8],[83,-5],[88,-2],[81,-1],[86,6],[90,-7],[95,7]], lines:[[0,1],[1,2],[3,4],[1,5],[2,6],[4,6],[3,0]] },
+      // (v1.2) Ursa Major — the seven stars of the Big Dipper (Plough).
+      // [RA, Dec] in degrees.  RA values were converted from h:m (× 15°/h).
+      //   0 Alkaid  η UMa  (206.88°, +49.31°)   handle tip
+      //   1 Mizar   ζ UMa  (200.98°, +54.93°)
+      //   2 Alioth  ε UMa  (193.51°, +55.96°)
+      //   3 Megrez  δ UMa  (183.86°, +57.03°)   handle-meets-bowl
+      //   4 Phecda  γ UMa  (178.46°, +53.69°)
+      //   5 Merak   β UMa  (165.46°, +56.38°)
+      //   6 Dubhe   α UMa  (165.93°, +61.75°)   pointer star
+      { name:"Ursa Major",
+        stars:[[206.88,49.31],[200.98,54.93],[193.51,55.96],[183.86,57.03],[178.46,53.69],[165.46,56.38],[165.93,61.75]],
+        lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,3]] },
+      // (v1.2) Ursa Minor — Little Dipper, anchored on Polaris (the Pole Star).
+      //   0 Polaris  α UMi  ( 37.95°, +89.26°)   tip of the handle, ~ celestial NP
+      //   1 Yildun   δ UMi  (263.05°, +86.59°)
+      //   2 ε UMi           (245.51°, +82.04°)
+      //   3 ζ UMi           (236.01°, +77.79°)   handle-meets-bowl
+      //   4 η UMi           (244.96°, +75.76°)   bowl
+      //   5 β UMi  Kochab   (222.68°, +74.16°)   bowl (bright)
+      //   6 γ UMi  Pherkad  (230.18°, +71.83°)   bowl
+      { name:"Ursa Minor",
+        stars:[[37.95,89.26],[263.05,86.59],[245.51,82.04],[236.01,77.79],[244.96,75.76],[222.68,74.16],[230.18,71.83]],
+        lines:[[0,1],[1,2],[2,3],[3,4],[4,6],[6,5],[5,3]],
+        polaris: 0 }   // index of Polaris — drawn larger + labelled
     ];
 
     // Greenwich Mean Sidereal Time (degrees) for any Date.  Tells us which
@@ -14586,7 +14993,7 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
     function projectConstellationStar(ra, dec) {
       const rot = constellationRotationDeg();
       const lon = normalizeLongitude(ra - rot);
-      const lat = Math.max(-80, Math.min(80, dec));
+      const lat = Math.max(-89.5, Math.min(89.5, dec));
       return imageToScreen(latLonToImagePoint(lat, lon));
     }
 
@@ -14603,11 +15010,14 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
             idx,
             ra,
             dec,
-            lat: Math.max(-80, Math.min(80, dec)),
+            // (v1.2) Clamp loosened to ±89.5° so Polaris (Dec = 89.26°)
+            // renders close to the celestial pole instead of being pinned
+            // at ±80° latitude on the AE map.
+            lat: Math.max(-89.5, Math.min(89.5, dec)),
             lon: normalizeLongitude(ra - rot)
           };
         });
-        out.push({ name: c.name, stars, lines: c.lines });
+        out.push({ name: c.name, stars, lines: c.lines, polaris: c.polaris });
       }
       return out;
     };
@@ -14643,11 +15053,23 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
           ctx.stroke();
         }
 
-        for (const s of c.stars) {
+        for (let si = 0; si < c.stars.length; si++) {
+          const s = c.stars[si];
           const p = projectConstellationStar(s[0], s[1]);
+          // (v1.2) Polaris is special — drawn 1.8× larger with a soft cyan
+          // glow so it reads as "the" pole star, and labelled in both langs.
+          const isPolaris = (typeof c.polaris === "number" && c.polaris === si);
+          const baseR = Math.max(1.2, Math.min(2.5, 1.25 * Math.sqrt(Math.max(1, state.scale))));
+          if (isPolaris) {
+            const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, baseR * 6);
+            glow.addColorStop(0, "rgba(190,225,255,0.55)");
+            glow.addColorStop(1, "rgba(190,225,255,0)");
+            ctx.fillStyle = glow;
+            ctx.beginPath(); ctx.arc(p.x, p.y, baseR * 6, 0, Math.PI*2); ctx.fill();
+          }
           ctx.beginPath();
-          ctx.arc(p.x, p.y, Math.max(1.2, Math.min(2.5, 1.25 * Math.sqrt(Math.max(1, state.scale)))), 0, Math.PI*2);
-          ctx.fillStyle = "rgba(235,245,255,0.82)";
+          ctx.arc(p.x, p.y, isPolaris ? baseR * 1.8 : baseR, 0, Math.PI*2);
+          ctx.fillStyle = isPolaris ? "rgba(255,255,255,0.98)" : "rgba(235,245,255,0.82)";
           ctx.fill();
         }
 
@@ -14761,8 +15183,25 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
     function seedISSPlaybackV67() {
       const d = state.issData || { latitude: 0, longitude: -45, altitude: 420, velocity: 27600 };
       const inc = 51.6;
+      // (v1.2) Detect whether the ISS is ascending (Δlat > 0) or descending
+      // so the seeded sine-phase puts the satellite on the correct half of
+      // the orbit.  Previously asin() always returned the ascending branch
+      // and playback would visibly jump to the "wrong" hemisphere of the
+      // orbit, looking far from where the live ISS actually is.
+      let ascending = true;
+      try {
+        const trail = state.issTrail;
+        if (trail && trail.length >= 2) {
+          const prev = trail[trail.length - 2];
+          ascending = (Number(d.latitude) - Number(prev.latitude)) >= 0;
+        }
+      } catch (_) {}
+      const lat = Math.max(-inc, Math.min(inc, Number(d.latitude) || 0));
+      const basePhase = Math.asin(Math.max(-1, Math.min(1, lat / inc)));
+      // asin gives ascending branch [-π/2, π/2]. For descending, mirror to π - phase.
+      const phase = ascending ? basePhase : (Math.PI - basePhase);
       state.issPlaybackBase = {
-        phase: Math.asin(Math.max(-1, Math.min(1, (Number(d.latitude) || 0) / inc))),
+        phase,
         lon: Number(d.longitude) || -45,
         altitude: Number(d.altitude) || 420,
         velocity: Number(d.velocity) || 27600
@@ -14771,6 +15210,27 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
       playbackDataV67 = null;
       // kill any old trace
       state.issTrail = [];
+      // If we had to fall back to defaults because issData wasn't ready yet,
+      // kick off a one-shot live fetch and re-seed when it arrives so the
+      // playback path snaps to the real ISS location.
+      if (!state.issData && typeof fetchISSPosition === "function") {
+        Promise.resolve().then(() => fetchISSPosition()).then(() => {
+          if (state.issPlaybackEnabled && state.issData) {
+            // Re-seed from the live position
+            const d2 = state.issData;
+            const lat2 = Math.max(-inc, Math.min(inc, Number(d2.latitude) || 0));
+            state.issPlaybackBase = {
+              phase: Math.asin(Math.max(-1, Math.min(1, lat2 / inc))),
+              lon: Number(d2.longitude) || -45,
+              altitude: Number(d2.altitude) || 420,
+              velocity: Number(d2.velocity) || 27600
+            };
+            state.issPlaybackStart = performance.now();
+            state.issTrail = [];
+            if (typeof draw === "function") draw();
+          }
+        }).catch(()=>{});
+      }
     }
 
     function updateISSPlaybackV67() {
@@ -14851,7 +15311,9 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
       }, { capture:true });
     }
 
-    // Replace ISS overlay from scratch so playback doesn't depend on issEnabled and never draws trace.
+    // (v1.2) Realistic ISS overlay — vector spacecraft (truss + solar panels +
+    // modules) rotated along the orbital direction.  Labels are stroked bold
+    // text only — no background box, so RTL/LTR alignment cannot drift.
     drawISSOverlay = function() {
       const d = state.issPlaybackEnabled ? updateISSPlaybackV67() : state.issData;
       if (!d) return;
@@ -14879,37 +15341,138 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
       }
 
       const p = imageToScreen(latLonToImagePoint(d.latitude, d.longitude));
-      const r = Math.max(7, Math.min(13, 7 * Math.sqrt(Math.max(1, state.scale))));
-      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 3.2);
-      grad.addColorStop(0, state.issPlaybackEnabled ? "rgba(180,255,180,0.48)" : "rgba(120,220,255,0.46)");
+      const r = Math.max(9, Math.min(18, 10 * Math.sqrt(Math.max(1, state.scale))));
+
+      // Direction of motion (use second-to-last point if available)
+      let angle = 0;
+      try {
+        const trail = state.issTrail;
+        if (trail && trail.length >= 2) {
+          const prev = trail[trail.length - 2];
+          const pp = imageToScreen(latLonToImagePoint(prev.latitude, prev.longitude));
+          angle = Math.atan2(p.y - pp.y, p.x - pp.x);
+        }
+      } catch (_) {}
+
+      // Soft glow halo (so the station reads on busy maps)
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 3.0);
+      grad.addColorStop(0, state.issPlaybackEnabled ? "rgba(180,255,180,0.42)" : "rgba(120,220,255,0.40)");
       grad.addColorStop(1, "rgba(120,220,255,0)");
       ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, r * 3.2, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, r * 3.0, 0, Math.PI * 2);
       ctx.fill();
 
+      // Vector ISS — truss runs along motion vector, panels perpendicular.
+      // (v1.2 fix) Wrap the rotated/translated drawing in its own save/restore
+      // pair so the outer DPR transform stays intact for the label below.
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(angle);
+
+      const trussL = r * 2.6;       // length along travel
+      const trussW = r * 0.30;      // truss thickness
+      const panelW = r * 1.40;      // panel half-length (perpendicular)
+      const panelH = r * 0.55;      // panel chord
+
+      // Solar panels (4 wings: 2 fore, 2 aft, each pair top+bottom)
+      const drawPanel = (cx, cy) => {
+        // Outer dark frame
+        ctx.fillStyle = "rgba(20,32,60,0.95)";
+        ctx.fillRect(cx - panelH/2, cy - panelW/2, panelH, panelW);
+        // Inner blue cells (gradient for sheen)
+        const pg = ctx.createLinearGradient(cx - panelH/2, cy, cx + panelH/2, cy);
+        pg.addColorStop(0, "rgba(70,120,210,0.95)");
+        pg.addColorStop(0.5, "rgba(120,180,240,0.95)");
+        pg.addColorStop(1, "rgba(70,120,210,0.95)");
+        ctx.fillStyle = pg;
+        ctx.fillRect(cx - panelH/2 + 1, cy - panelW/2 + 1, panelH - 2, panelW - 2);
+        // Cell grid lines
+        ctx.strokeStyle = "rgba(15,25,45,0.85)";
+        ctx.lineWidth = 0.6;
+        const cells = 5;
+        for (let i = 1; i < cells; i++) {
+          const y = cy - panelW/2 + (panelW / cells) * i;
+          ctx.beginPath(); ctx.moveTo(cx - panelH/2, y); ctx.lineTo(cx + panelH/2, y); ctx.stroke();
+        }
+        ctx.beginPath(); ctx.moveTo(cx, cy - panelW/2); ctx.lineTo(cx, cy + panelW/2); ctx.stroke();
+      };
+
+      // Pairs offset along the truss (fore / aft) with paired panels each side
+      const offFore = trussL * 0.32;
+      const offAft  = -trussL * 0.32;
+      const panelGap = panelW * 0.55 + trussW * 0.5;
+      drawPanel(offFore,  panelGap);
+      drawPanel(offFore, -panelGap);
+      drawPanel(offAft,   panelGap);
+      drawPanel(offAft,  -panelGap);
+
+      // Central truss
+      const trussGrad = ctx.createLinearGradient(0, -trussW/2, 0, trussW/2);
+      trussGrad.addColorStop(0, "rgba(220,220,225,0.95)");
+      trussGrad.addColorStop(0.5, "rgba(255,255,255,0.98)");
+      trussGrad.addColorStop(1, "rgba(170,175,185,0.95)");
+      ctx.fillStyle = trussGrad;
+      ctx.fillRect(-trussL/2, -trussW/2, trussL, trussW);
+      ctx.strokeStyle = "rgba(40,55,80,0.85)";
+      ctx.lineWidth = 0.7;
+      ctx.strokeRect(-trussL/2, -trussW/2, trussL, trussW);
+      // Truss segment ticks
+      const segs = 6;
+      for (let i = 1; i < segs; i++) {
+        const x = -trussL/2 + (trussL / segs) * i;
+        ctx.beginPath(); ctx.moveTo(x, -trussW/2); ctx.lineTo(x, trussW/2); ctx.stroke();
+      }
+
+      // Central pressurised modules cluster (cylinders perpendicular to truss)
+      ctx.fillStyle = "rgba(235,238,245,0.98)";
+      ctx.strokeStyle = "rgba(40,55,80,0.85)";
+      ctx.lineWidth = 0.8;
+      // Main lab module (along truss)
+      const modL = r * 1.30, modW = r * 0.62;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(235,250,255,0.98)";
+      if (ctx.roundRect) ctx.roundRect(-modL/2, -modW/2, modL, modW, modW * 0.35);
+      else ctx.rect(-modL/2, -modW/2, modL, modW);
+      ctx.fill(); ctx.stroke();
+      // Perpendicular Node/Cupola module
+      const xmodL = r * 0.55, xmodW = r * 1.05;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(-xmodL/2, -xmodW/2, xmodL, xmodW, xmodL * 0.35);
+      else ctx.rect(-xmodL/2, -xmodW/2, xmodL, xmodW);
+      ctx.fill(); ctx.stroke();
+      // Cupola window dot
+      ctx.fillStyle = "rgba(80,180,255,0.9)";
+      ctx.beginPath();
+      ctx.arc(0, xmodW/2 - r*0.18, r * 0.14, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = state.issPlaybackEnabled ? "rgba(124,221,160,0.98)" : "rgba(54,160,255,0.95)";
-      ctx.lineWidth = 2.4;
+
+      // Small docked craft hint at fore end
+      ctx.fillStyle = "rgba(180,190,205,0.95)";
+      ctx.beginPath();
+      ctx.arc(trussL/2 + r*0.18, 0, r * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(40,55,80,0.85)";
       ctx.stroke();
 
-      ctx.font = `${Math.max(15, Math.min(20, 15 * Math.sqrt(Math.max(1, state.scale))))}px Inter, Arial, sans-serif`;
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = "rgba(5,12,20,0.88)";
-      ctx.fillText("🛰️", p.x - r * 0.82, p.y + 0.5);
+      // (v1.2 fix) Restore from the spaceship's translate/rotate so the
+      // outer DPR scale survives — without this the label was drawn at
+      // half the device-pixel offset of the icon (far upper-left).
+      ctx.restore();
 
-      const label = `${state.issPlaybackEnabled ? "ISS Playback" : "ISS"} ${d.latitude.toFixed(1)}°, ${d.longitude.toFixed(1)}°`;
-      ctx.font = "12px Inter, Arial, sans-serif";
-      const tw = ctx.measureText(label).width + 12;
-      ctx.fillStyle = "rgba(8,14,24,0.82)";
-      if (ctx.roundRect) ctx.roundRect(p.x + r + 8, p.y - 16, tw, 22, 9);
-      else ctx.rect(p.x + r + 8, p.y - 16, tw, 22);
-      ctx.fill();
-      ctx.fillStyle = "rgba(235,250,255,0.98)";
-      ctx.fillText(label, p.x + r + 14, p.y - 5);
+      // --- Label: bold stroked text, no background box (RTL-safe) ---
+      const labelPrefix = state.issPlaybackEnabled ? "ISS Playback" : "ISS";
+      const label = `${labelPrefix} ${d.latitude.toFixed(1)}°, ${d.longitude.toFixed(1)}°`;
+      ctx.font = "bold 13px Inter, Arial, sans-serif";
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "left";
+      // Black outline for legibility on any background
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "rgba(0,0,0,0.92)";
+      ctx.strokeText(label, p.x + r + 8, p.y - 4);
+      ctx.fillStyle = state.issPlaybackEnabled ? "rgba(170,255,190,0.99)" : "rgba(235,250,255,0.99)";
+      ctx.fillText(label, p.x + r + 8, p.y - 4);
+
       ctx.restore();
     };
 
@@ -15632,6 +16195,8 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
     const wrap = document.querySelector(".viewer-wrap");
     const overlay = document.getElementById("celestial3DOverlay");
     const octx = overlay ? overlay.getContext("2d") : null;
+    // (v1.2) Force LTR on 3D overlay canvas too (Arabic RTL parity fix).
+    try { if (overlay) overlay.setAttribute("dir", "ltr"); if (octx) octx.direction = "ltr"; } catch (_) {}
     const btn = document.getElementById("celestial3DToggle");
     const info = document.getElementById("celestial3DInfo");
     const pmBtn = document.getElementById("pmCelestial3D");
@@ -15912,18 +16477,54 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
         });
         label = `${_trn} ${(phaseInfo.illuminated * 100).toFixed(0)}%`;
       } else {
-        const g = octx.createRadialGradient(body.x, body.y, 2, body.x, body.y, radius * 4.2);
-        g.addColorStop(0, glow);
-        g.addColorStop(1, "rgba(0,0,0,0)");
-        octx.fillStyle = g;
-        octx.beginPath(); octx.arc(body.x, body.y, radius * 4.2, 0, Math.PI*2); octx.fill();
+        // (v1.2) More realistic 3D Sun:
+        //  • Wider three-stop corona out to 5× radius (instead of 4.2×)
+        //  • Inner photosphere has multi-stop gradient: hot white core →
+        //    yellow → amber → deep red limb darkening
+        //  • Subtle surface granulation rendered as low-alpha radial spots
+        //    inside a clip — gives a non-flat 3D sphere look
+        const corona = octx.createRadialGradient(body.x, body.y, radius * 0.9, body.x, body.y, radius * 5);
+        corona.addColorStop(0,   "rgba(255,235,160,0.45)");
+        corona.addColorStop(0.30,"rgba(255,180,80,0.30)");
+        corona.addColorStop(1,   "rgba(255,140,40,0)");
+        octx.fillStyle = corona;
+        octx.beginPath(); octx.arc(body.x, body.y, radius * 5, 0, Math.PI*2); octx.fill();
+        // Photosphere disc with limb darkening + warm core.
         octx.beginPath(); octx.arc(body.x, body.y, radius, 0, Math.PI*2);
-        const bodyGrad = octx.createRadialGradient(body.x - radius * 0.32, body.y - radius * 0.34, 1, body.x, body.y, radius);
-        bodyGrad.addColorStop(0, "rgba(255,255,225,1)");
-        bodyGrad.addColorStop(0.36, color);
-        bodyGrad.addColorStop(1, "rgba(190,82,18,0.96)");
-        octx.fillStyle = bodyGrad; octx.fill();
-        octx.strokeStyle = "rgba(255,255,255,0.86)"; octx.lineWidth = 2; octx.stroke();
+        const photo = octx.createRadialGradient(
+          body.x - radius * 0.35, body.y - radius * 0.40, radius * 0.05,
+          body.x, body.y, radius
+        );
+        photo.addColorStop(0,    "rgba(255,255,250,1)");
+        photo.addColorStop(0.20, "rgba(255,235,150,1)");
+        photo.addColorStop(0.55, "rgba(255,180,60,1)");
+        photo.addColorStop(0.90, "rgba(225,110,30,0.98)");
+        photo.addColorStop(1,    "rgba(170,60,15,0.95)");
+        octx.fillStyle = photo; octx.fill();
+        // Faint granulation: ~6 soft warm flecks clipped to the disc.
+        // (v1.2) Skipped entirely on Android-low — 6 radial gradients per
+        // frame inside a clip path is one of the heaviest cost centres.
+        if (!(typeof window !== "undefined" && window.IS_ANDROID_LOW)) {
+        octx.save();
+        octx.beginPath(); octx.arc(body.x, body.y, radius * 0.96, 0, Math.PI*2); octx.clip();
+        const granPositions = [[-0.35,-0.15,0.25],[0.2,-0.30,0.18],[0.35,0.20,0.22],[-0.20,0.30,0.20],[0.05,-0.05,0.16],[-0.05,0.10,0.18]];
+        for (const gp of granPositions) {
+          const gx = body.x + radius * gp[0];
+          const gy = body.y + radius * gp[1];
+          const gr = radius * gp[2];
+          const gg = octx.createRadialGradient(gx, gy, 0, gx, gy, gr);
+          gg.addColorStop(0, "rgba(255,250,210,0.22)");
+          gg.addColorStop(1, "rgba(255,250,210,0)");
+          octx.fillStyle = gg;
+          octx.beginPath(); octx.arc(gx, gy, gr, 0, Math.PI*2); octx.fill();
+        }
+        octx.restore();
+        }
+        // Thin warm rim to give a clean edge.
+        octx.beginPath(); octx.arc(body.x, body.y, radius, 0, Math.PI*2);
+        octx.strokeStyle = "rgba(255,200,110,0.85)";
+        octx.lineWidth = 1.5;
+        octx.stroke();
       }
       octx.font = "700 13px Inter, Arial, sans-serif";
       octx.lineWidth = 3;
@@ -16008,8 +16609,14 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
       }
       octx.strokeStyle = "rgba(255,255,255,0.75)"; octx.lineWidth = 1.5; octx.stroke();
       octx.font = "700 11px Inter, Arial, sans-serif";
-      octx.fillStyle = "rgba(245,250,255,0.92)";
-      octx.fillText(body.name, pp.body.x + r + 5, pp.body.y + 3);
+      // (v1.2) Translate planet label via window.i18n for Arabic mode.
+      const _trpb = (typeof window.i18n === "function") ? window.i18n(body.name) : body.name;
+      // Stroke-then-fill so the label is readable against any sky colour.
+      octx.lineWidth = 3;
+      octx.strokeStyle = "rgba(0,0,0,0.85)";
+      octx.strokeText(_trpb, pp.body.x + r + 5, pp.body.y + 3);
+      octx.fillStyle = "rgba(245,250,255,0.95)";
+      octx.fillText(_trpb, pp.body.x + r + 5, pp.body.y + 3);
       octx.restore();
     }
 
@@ -16045,8 +16652,18 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
             octx.beginPath(); octx.arc(pp.ground.x, pp.ground.y, 1.6, 0, Math.PI*2);
             octx.fillStyle = "rgba(170,210,255,0.32)"; octx.fill();
           }
-          octx.beginPath(); octx.arc(pp.body.x, pp.body.y, 1.8, 0, Math.PI*2);
-          octx.fillStyle = "rgba(235,245,255,0.80)"; octx.fill();
+          // (v1.2) Polaris highlight in 3D — glow + 2× radius + white core.
+          const isPolaris = (typeof group.polaris === "number" && group.polaris === i);
+          if (isPolaris) {
+            const glow = octx.createRadialGradient(pp.body.x, pp.body.y, 0, pp.body.x, pp.body.y, 12);
+            glow.addColorStop(0, "rgba(190,225,255,0.75)");
+            glow.addColorStop(1, "rgba(190,225,255,0)");
+            octx.fillStyle = glow;
+            octx.beginPath(); octx.arc(pp.body.x, pp.body.y, 12, 0, Math.PI*2); octx.fill();
+          }
+          octx.beginPath(); octx.arc(pp.body.x, pp.body.y, isPolaris ? 3.6 : 1.8, 0, Math.PI*2);
+          octx.fillStyle = isPolaris ? "rgba(255,255,255,0.98)" : "rgba(235,245,255,0.80)";
+          octx.fill();
           sx += pp.body.x; sy += pp.body.y; n++;
         });
         if (n) {
@@ -16130,27 +16747,45 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
   if (state.terrainMode === "terrain") state.terrainMode = "satellite";
   loadImage(state.imageUrl);
   updateWeatherBadge();
-  // Silently preload satellite texture in the background so switching to it
-  // feels instant — thumbnail arrives in <1 s, HQ follows.
-  setTimeout(() => { try { loadSatelliteTexture(true); } catch(e){} }, 3000);
+  // (v1.2) Silently preload satellite texture ASAP — it's the source for both
+  // Satellite mode AND the North-Azimuthal Geographic mode's pre-rendered
+  // image.  Moved from 3 s → 600 ms so Geographic feels "preloaded" the
+  // moment the user switches to it.
+  setTimeout(() => { try { loadSatelliteTexture(true); } catch(e){} }, 600);
+
+  // (v1.2) When the satellite texture or any HQ tier becomes ready, if the
+  // user is currently in Geographic mode, eagerly rebuild the cache so the
+  // pre-rendered AE image is on screen immediately (no per-frame warping).
+  (function watchGeoTextureUpgrade(){
+    let lastReady = false, lastHQ = false;
+    setInterval(() => {
+      const ready = !!state.satelliteTextureReady;
+      const hq    = !!state.satelliteTextureHQ;
+      if ((ready && !lastReady) || (hq && !lastHQ)) {
+        if (state.terrainMode === "geographic") {
+          state.vectorMapCacheDirty = true;
+          try { draw(); } catch (_) {}
+        }
+      }
+      lastReady = ready; lastHQ = hq;
+    }, 500);
+  })();
 
   // ──────────────────────────────────────────────────────────────────────────
-  //  v77 — SUN/MOON DIRECT MANIPULATION (tap-to-pause, drag-to-scrub)
+  //  v1.2 — SUN/MOON DIRECT MANIPULATION  (tap-to-pause, drag-to-scrub)
   // ──────────────────────────────────────────────────────────────────────────
-  // Tap the Sun or Moon while Day/Night is playing → pause.
-  // Tap again → resume.
-  // Drag the Sun or Moon → scrub time.  The drag uses the ANGULAR delta of
-  // the marker around the disc centre — moving the sun the full way round
-  // = 24 hours, mirroring how the celestial sphere actually rotates.
-  // Fling: release with velocity → playback continues at that speed for
-  // ~1.5 s before decaying back to 1×.
+  //  Tap the Sun or Moon while Day/Night is playing → pause.
+  //  Tap again → resume at 1× speed.
+  //  Drag the Sun or Moon → scrub time:
+  //    – 2D map: angular drag around the disc-centre (360° = 24 h).
+  //    – 3D dome: horizontal swipe (canvas-width = 12 h).
+  //  Release velocity drives ongoing playback at that EXACT pace — slow
+  //  swipe = slow continuous play, fast swipe = fast continuous play, no
+  //  decay.  Tap the marker again to stop.
   (function setupSunMoonScrubV77(){
-    const HIT_PX           = 28;       // tap/drag hit radius (px around marker)
-    const TAP_MAX_PX       = 8;        // total drag distance below this = tap
-    const TAP_MAX_MS       = 350;      // and below this duration = tap
-    const FLING_MIN_VEL    = 80;       // °/s minimum velocity to fling
-    const FLING_MAX_SPEED  = 60;       // playback speed cap on fling (× normal)
-    const FLING_DECAY_MS   = 1500;     // fling decays back to 1× over this long
+    const HIT_PX     = 28;   // tap/drag hit radius (px around marker)
+    const TAP_MAX_PX = 8;    // total drag distance below this = tap
+    const TAP_MAX_MS = 350;  // and below this duration = tap
 
     let dragging = false;
     let target = null;                 // "sun" | "moon" — which marker grabbed
@@ -16282,6 +16917,7 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
       cumulativeDeg = 0;
       velocityDegPerSec = 0;
       state._dayNightScrubbing = true;
+      state._scrubInputTick = 0;
       // Pause playback during scrub so it doesn't fight the gesture.
       if (state.dayNightPlaying) setDayNightPlaying(false);
     }, { capture: true });
@@ -16324,9 +16960,17 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
       const next = new Date(startDate.getTime() + hoursDelta * 3600000);
       state.dayNightMode = "date";
       state.dayNightDate = next.toISOString();
-      if (ui.dayNightMode) ui.dayNightMode.value = "date";
-      if (typeof updateDayNightDateInput === "function") {
-        try { updateDayNightDateInput(next); } catch(_) {}
+      // (v1.2) Throttle the input/select reflows during scrub to ~5 Hz.
+      // Setting <input> values every pointermove causes browser-layout work
+      // that visibly stutters the first revolution; capping it at 200 ms
+      // ticks makes the drag butter-smooth from frame 1.
+      const _nowTick = performance.now();
+      if (!state._scrubInputTick || _nowTick - state._scrubInputTick > 200) {
+        state._scrubInputTick = _nowTick;
+        if (ui.dayNightMode) ui.dayNightMode.value = "date";
+        if (typeof updateDayNightDateInput === "function") {
+          try { updateDayNightDateInput(next); } catch(_) {}
+        }
       }
       velocityDegPerSec = velSignal;
       lastScreenPos = pos;
@@ -16335,6 +16979,49 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
       ev.stopImmediatePropagation();
       draw();
     }, { capture: true });
+
+    // (v1.2) Shared release handler — replaces the old "fling-with-decay" math.
+    //
+    //   • Tap (tiny drag + short duration) → toggle play/pause at 1×.
+    //   • Any drag → release velocity drives ONGOING playback at that speed,
+    //     forever, no decay.  Slow swipe → slow play, fast swipe → fast play.
+    //     User taps Sun/Moon to stop.
+    //
+    //   Mapping: gesture velocity is tracked in "degrees-of-arc per second"
+    //   (the angular sweep around the pole in 2D, or the equivalent °/s on
+    //   the celestial sphere in 3D).  At 1× playback speed the Sun moves
+    //   ≈ 36°/s on screen during animation (one day per 10 s real-time =
+    //   8640× real, sun moves 360° per 24 h → 0.00417 °/s × 8640 ≈ 36 °/s).
+    //   So: speed = velocityDegPerSec / 36, clamped to a sane ±100× range.
+    function _resolveDragRelease(dist, dur) {
+      const wasTap = (dist < TAP_MAX_PX) && (dur < TAP_MAX_MS);
+      if (wasTap) {
+        setDayNightPlaying(!state.dayNightPlaying);
+      } else {
+        const v = velocityDegPerSec;
+        // No threshold — any movement at release continues at gesture pace.
+        let speed = v / 36;
+        // Hard clamp; preserve sign.
+        if (speed >  100) speed =  100;
+        if (speed < -100) speed = -100;
+        // If user released essentially still, snap to a tiny minimum so
+        // playback continues subtly in the last-known direction rather
+        // than freezing on a single date.  Sign defaults to forward.
+        if (Math.abs(speed) < 0.05) {
+          // No real velocity — just freeze on the scrubbed date (don't auto-play).
+          dragging = false;
+          state._dayNightScrubbing = false;
+          target = null;
+          startScreenPos = lastScreenPos = null;
+          startDate = null;
+          velocityDegPerSec = 0;
+          if (typeof markInteractionSettling === "function") markInteractionSettling();
+          return;
+        }
+        state.dayNightPlaySpeed = speed;
+        setDayNightPlaying(true);
+      }
+    }
 
     function endDrag(ev) {
       if (!dragging) return;
@@ -16347,44 +17034,7 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
       ev.stopPropagation();
       ev.stopImmediatePropagation();
 
-      const wasTap = (dist < TAP_MAX_PX) && (dur < TAP_MAX_MS);
-      if (wasTap) {
-        // Toggle playback at normal speed.
-        setDayNightPlaying(!state.dayNightPlaying);
-      } else {
-        // Fling? Use final velocity to set a temporary playback speed that
-        // decays back to 1× over FLING_DECAY_MS.
-        const v = velocityDegPerSec;
-        if (Math.abs(v) >= FLING_MIN_VEL) {
-          // Convert °/s into a playback-speed multiplier.  At 1× speed
-          // the sun moves ≈ 360°/24 h ≈ 0.00417 °/s on screen.  So a
-          // gesture velocity of e.g. 90 °/s ≈ 21,600× normal — clamp.
-          const naturalDegPerSec = 360 / (24 * 3600);
-          let mult = v / naturalDegPerSec;
-          mult = Math.max(-FLING_MAX_SPEED * 1000, Math.min(FLING_MAX_SPEED * 1000, mult));
-          // Soft-clamp into a reasonable feel range — 60× max effective.
-          const clamped = Math.sign(mult) * Math.min(FLING_MAX_SPEED, Math.log10(1 + Math.abs(mult)) * 8);
-          state.dayNightPlaySpeed = clamped;
-          setDayNightPlaying(true);
-          // Decay the speed back to ±1× over FLING_DECAY_MS — preserving
-          // direction so a backward fling settles into REVERSE 1× play, not
-          // forward.  Tap sun/moon again to stop.
-          const t0 = performance.now();
-          const startSpeed = clamped;
-          const targetSpeed = Math.sign(startSpeed) || 1;   // ±1, never 0
-          const decayTick = () => {
-            if (!state.dayNightPlaying) return;
-            const t = (performance.now() - t0) / FLING_DECAY_MS;
-            if (t >= 1) { state.dayNightPlaySpeed = targetSpeed; return; }
-            const k = 1 - Math.pow(1 - t, 3); // ease-out cubic
-            state.dayNightPlaySpeed = startSpeed + (targetSpeed - startSpeed) * k;
-            requestAnimationFrame(decayTick);
-          };
-          requestAnimationFrame(decayTick);
-        }
-        // (If under fling threshold, leave time at the scrubbed position
-        //  and don't auto-play — that's the precise-scrub use case.)
-      }
+      _resolveDragRelease(dist, dur);
       dragging = false;
       state._dayNightScrubbing = false;
       target = null;
@@ -16423,6 +17073,7 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
       cumulativeDeg = 0;
       velocityDegPerSec = 0;
       state._dayNightScrubbing = true;
+      state._scrubInputTick = 0;
       if (typeof markInteractionActive === "function") markInteractionActive();
       if (state.dayNightPlaying) setDayNightPlaying(false);
     }, { capture: true, passive: false });
@@ -16461,9 +17112,17 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
       const next = new Date(startDate.getTime() + hoursDelta * 3600000);
       state.dayNightMode = "date";
       state.dayNightDate = next.toISOString();
-      if (ui.dayNightMode) ui.dayNightMode.value = "date";
-      if (typeof updateDayNightDateInput === "function") {
-        try { updateDayNightDateInput(next); } catch(_) {}
+      // (v1.2) Throttle the input/select reflows during scrub to ~5 Hz.
+      // Setting <input> values every pointermove causes browser-layout work
+      // that visibly stutters the first revolution; capping it at 200 ms
+      // ticks makes the drag butter-smooth from frame 1.
+      const _nowTick = performance.now();
+      if (!state._scrubInputTick || _nowTick - state._scrubInputTick > 200) {
+        state._scrubInputTick = _nowTick;
+        if (ui.dayNightMode) ui.dayNightMode.value = "date";
+        if (typeof updateDayNightDateInput === "function") {
+          try { updateDayNightDateInput(next); } catch(_) {}
+        }
       }
       velocityDegPerSec = velSignal;
       lastScreenPos = pos;
@@ -16481,32 +17140,7 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
       ev.preventDefault();
       ev.stopPropagation();
       ev.stopImmediatePropagation();
-      const wasTap = (dist < TAP_MAX_PX) && (dur < TAP_MAX_MS);
-      if (wasTap) {
-        setDayNightPlaying(!state.dayNightPlaying);
-      } else {
-        const v = velocityDegPerSec;
-        if (Math.abs(v) >= FLING_MIN_VEL) {
-          const naturalDegPerSec = 360 / (24 * 3600);
-          let mult = v / naturalDegPerSec;
-          mult = Math.max(-FLING_MAX_SPEED * 1000, Math.min(FLING_MAX_SPEED * 1000, mult));
-          const clamped = Math.sign(mult) * Math.min(FLING_MAX_SPEED, Math.log10(1 + Math.abs(mult)) * 8);
-          state.dayNightPlaySpeed = clamped;
-          setDayNightPlaying(true);
-          const t0 = performance.now();
-          const startSpeed = clamped;
-          const targetSpeed = Math.sign(startSpeed) || 1;
-          const decayTick = () => {
-            if (!state.dayNightPlaying) return;
-            const t = (performance.now() - t0) / FLING_DECAY_MS;
-            if (t >= 1) { state.dayNightPlaySpeed = targetSpeed; return; }
-            const k = 1 - Math.pow(1 - t, 3);
-            state.dayNightPlaySpeed = startSpeed + (targetSpeed - startSpeed) * k;
-            requestAnimationFrame(decayTick);
-          };
-          requestAnimationFrame(decayTick);
-        }
-      }
+      _resolveDragRelease(dist, dur);
       dragging = false;
       state._dayNightScrubbing = false;
       target = null;
@@ -16562,10 +17196,14 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
       "Satellite": "القمر الصناعي",
       "Background color": "لون الخلفية",
       "Black": "أسود",
+      "Sea (ocean blue)": "البحر (أزرق المحيط)",
       "Antarctica (ice white)": "القارة القطبية الجنوبية (أبيض الجليد)",
       "Coordinate lines": "خطوط الإحداثيات",
       "City labels": "أسماء المدن",
       "Borders": "الحدود",
+      "Performance mode": "وضع الأداء",
+      "Off (full quality)": "إيقاف (جودة كاملة)",
+      "On (lighter effects)": "تشغيل (مؤثرات أخف)",
       "Language": "اللغة",
       // Measurement
       "Measurement units": "وحدات القياس",
@@ -16651,6 +17289,14 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
       "Pluto": "بلوتو",
       "Sun": "الشمس",
       "Moon": "القمر",
+      "Play": "تشغيل",
+      "Now": "الآن",
+      "Pause": "إيقاف مؤقت",
+      "Stop": "إيقاف",
+      "Animation speed": "سرعة الحركة",
+      "Time mode": "نمط الوقت",
+      "Date/time": "التاريخ والوقت",
+      "Date": "التاريخ",
       // Zodiac constellations
       "Aries": "الحَمَل",
       "Taurus": "الثَّور",
@@ -16664,7 +17310,10 @@ let touchMode = null;       // "pan" | "pinch" | "tap" | "ring"
       "Capricornus": "الجدي",
       "Aquarius": "الدلو",
       "Pisces": "الحوت",
-      "Orion": "الجبار"
+      "Orion": "الجبار",
+      "Ursa Major": "الدب الأكبر",
+      "Ursa Minor": "الدب الأصغر",
+      "Polaris": "النجم القطبي"
     };
 
     // Make a lookup helper available globally for canvas-drawn labels.
